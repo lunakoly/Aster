@@ -35,46 +35,46 @@ grammar = builder.compile_grammar_from_template({
         **builder.build_sequence_rule('octal'),
         **builder.build_sequence_rule('decimal'),
         **builder.build_sequence_rule('hexadecimal'),
-        'binaryNumber|returnable': {
+        'binaryNumber': {
             '@binarySequence~b': builder.build_ast('Number', {
                 'value': '$0',
                 'base': 2,
             }),
         },
-        'octalNumber|returnable': {
+        'octalNumber': {
             '@octalSequence~o': builder.build_ast('Number', {
                 'value': '$0',
                 'base': 8,
             }),
         },
-        'hexadecimalNumber|returnable': {
+        'hexadecimalNumber': {
             '@hexadecimalSequence~h': builder.build_ast('Number', {
                 'value': '$0',
                 'base': 16,
             }),
         },
-        'decimalNumber|returnable': {
+        'decimalNumber': {
             '@decimalSequence': builder.build_ast('Number', {
                 'value': '$0',
                 'base': 10,
             }),
         },
-        'name|returnable': {
+        'name': {
             '@name~#nameInner': handlers.string_append,
             '#nameStart': handlers.take(0),
         },
-        'identifier|returnable': {
+        'identifier': {
             '@name': builder.build_ast('Identifier', {
                 'name': '$0',
             }),
         },
         'expectedIdentifier': {
-            '@name': builder.build_ast('Identifier', {
+            '|@name': builder.build_ast('Identifier', {
                 'name': '$0',
             }),
         },
         **builder.build_comma_list_rule('expectedIdentifier'),
-        'string|returnable|lexing': {
+        'string|lexing': {
             'lexer': parse_string,
         },
         **builder.build_sequence_rule('blank'),
@@ -85,11 +85,11 @@ grammar = builder.compile_grammar_from_template({
             '@notBlankSequence': handlers.take(0),
         },
         'error': {
-            '@errorToken': builder.build_ast('Error', {
+            '|@errorToken': builder.build_ast('Error', {
                 'token': '$0',
             }),
         },
-        'anyToken|returnable': {
+        'anyToken': {
             '@binaryNumber': handlers.take(0),
             '@octalNumber': handlers.take(0),
             '@hexadecimalNumber': handlers.take(0),
@@ -99,69 +99,69 @@ grammar = builder.compile_grammar_from_template({
         },
         'item': {
             '@anyToken': handlers.take(0),
-            '( @expression )': handlers.take(1),
-            '@item ( @expressionList )': builder.build_ast('Call', {
+            '( | @expression )': handlers.take(1),
+            '@item ( | @expressionList )': builder.build_ast('Call', {
                 'receiver': '$0',
                 'arguments': '$2',
             }),
-            '@item [ @expressionList ]': builder.build_ast('Subscript', {
+            '@item [ | @expressionList ]': builder.build_ast('Subscript', {
                 'receiver': '$0',
                 'arguments': '$2',
             }),
-            '{ @expectedIdentifierList -> @statementList }': builder.build_ast('Closure', {
+            '{ @expectedIdentifierList -> | @statementList }': builder.build_ast('Closure', {
                 'arguments': '$1',
                 'statements': '$3',
             }),
-            '{ @statementList }': builder.build_ast('Closure', {
+            '{ | @statementList }': builder.build_ast('Closure', {
                 'arguments': None,
                 'statements': '$1',
             }),
             '@error': handlers.take(0),
         },
         'unaryMinus': {
-            '- $upper': builder.build_ast('UnaryMinus', {
+            '- | $upper': builder.build_ast('UnaryMinus', {
                 'target': '$1',
             }),
             '$upper': handlers.take(0),
         },
         'timesOrDivide': {
-            '$self * $upper': builder.build_binary_ast('Times', '$0', '$2'),
-            '$self / $upper': builder.build_binary_ast('Divide', '$0', '$2'),
+            '$self * | $upper': builder.build_binary_ast('Times', '$0', '$2'),
+            '$self / | $upper': builder.build_binary_ast('Divide', '$0', '$2'),
             **builder.build_forward_to_upper(),
         },
         'plusOrMinus': {
-            '$self + $upper': builder.build_binary_ast('Plus', '$0', '$2'),
-            '$self - $upper': builder.build_binary_ast('Minus', '$0', '$2'),
+            '$self + | $upper': builder.build_binary_ast('Plus', '$0', '$2'),
+            '$self - | $upper': builder.build_binary_ast('Minus', '$0', '$2'),
             **builder.build_forward_to_upper(),
         },
         'expression': {
             **builder.build_forward_to_upper(),
         },
         **builder.build_comma_list_rule('expression'),
-        'letDeclaration|returnable': {
-            ': @identifier = @expression': builder.build_ast('LetDeclaration', {
+        'letDeclarationContents': {
+            ': | @expectedIdentifier = @expression': builder.build_ast('LetDeclaration', {
                 'name': '$-1',
                 'type': '$1',
                 'value': '$3',
             }),
-            '= @expression': builder.build_ast('LetDeclaration', {
+            '= | @expression': builder.build_ast('LetDeclaration', {
                 'name': '$-1',
                 'type': None,
                 'value': '$1',
             }),
-            ': @identifier': builder.build_ast('LetDeclaration', {
+            ': | @expectedIdentifier': builder.build_ast('LetDeclaration', {
                 'name': '$-1',
                 'type': '$1',
                 'value': None,
             }),
         },
         'statement': {
-            'let~@blankSequence~@identifier @letDeclaration': handlers.take(3),
+            'let|@blankSequence @identifier @letDeclarationContents': handlers.take(3),
             '@expression': handlers.take(0),
         },
         **builder.build_comma_list_rule('statement'),
         'topLevelClosure': {
-            '@blankSequence~@statementList': builder.build_ast('Closure', {
+            '@blankSequence | @statementList': builder.build_ast('Closure', {
                 'arguments': None,
                 'statements': '$1',
             }),

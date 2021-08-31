@@ -28,8 +28,12 @@ def build_matcher(context, part):
 def split_branch_pattern(branch_pattern):
     branch_pattern = branch_pattern.strip()
     branch_pattern = re.sub(r'\s+', '~ ', branch_pattern)
+    branch_pattern = re.sub(r' \|', '|', branch_pattern)
     branch_pattern = re.sub(r'(?!<\\)\|', '~|~', branch_pattern)
+    branch_pattern = re.sub(r'\\\|', '|', branch_pattern)
     branch_pattern = re.sub(r'~+', '~', branch_pattern)
+    branch_pattern = re.sub(r'^~', '', branch_pattern)
+    branch_pattern = re.sub(r'~$', '', branch_pattern)
     return branch_pattern.split('~')
 
 def build_branch(context, branch_pattern, branch_action):
@@ -41,6 +45,8 @@ def build_branch(context, branch_pattern, branch_action):
         part = parts[it]
 
         if part == '|':
+            if non_returnable_index != -1:
+                raise Exception('Error > Duplicate "non-returnable bar" found > ' + branch_pattern)
             non_returnable_index = it
         else:
             matchers.append(build_matcher(context, part))
@@ -53,20 +59,20 @@ def build_branch(context, branch_pattern, branch_action):
 def build_symbol_rule(symbol_group_name, symbol_checker):
     return SymbolRule(symbol_group_name, symbol_checker)
 
-def build_sequence_rule(context, rule_template, name, returnable):
+def build_sequence_rule(context, rule_template, name):
     symbol_group = rule_template['symbolGroup']
-    return SequenceRule(name, NameReference(symbol_group), returnable)
+    return SequenceRule(name, NameReference(symbol_group))
 
 def build_token_rule(token):
     return TokenRule(token, token)
 
-def build_lexing_rule(context, rule_template, name, returnable):
+def build_lexing_rule(context, rule_template, name):
     lexer = rule_template['lexer']
-    return LexingRule(name, lexer, returnable)
+    return LexingRule(name, lexer)
 
-def build_branching_rule(context, rule_template, name, returnable):
+def build_branching_rule(context, rule_template, name):
     unsorted_branches = BranchGroup()
-    rule = BranchingRule(name, unsorted_branches, returnable)
+    rule = BranchingRule(name, unsorted_branches)
 
     for it in range(len(rule_template)):
         branch_pattern = list(rule_template.keys())[it]
@@ -78,15 +84,14 @@ def build_branching_rule(context, rule_template, name, returnable):
 
 def build_rule(context, rule_template, name_parts):
     name = name_parts[0]
-    returnable = any(it == 'returnable' for it in name_parts)
 
     if any(it == 'lexing' for it in name_parts):
-        return build_lexing_rule(context, rule_template, name, returnable)
+        return build_lexing_rule(context, rule_template, name)
 
     if any(it == 'sequence' for it in name_parts):
-        return build_sequence_rule(context, rule_template, name, returnable)
+        return build_sequence_rule(context, rule_template, name)
 
-    return build_branching_rule(context, rule_template, name, returnable)
+    return build_branching_rule(context, rule_template, name)
 
 def build_grammar(context, grammar_template, types):
     grammar = Grammar(types)

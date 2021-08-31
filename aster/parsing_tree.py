@@ -70,25 +70,24 @@ class BranchGroup(ParsingTreeNode):
         self.branches.append(it)
 
 class Rule(ParsingTreeNode):
-    def __init__(self, name, returnable):
+    def __init__(self, name):
         super().__init__()
         self.name = name
-        self.returnable = returnable
 
     def accept(self, visitor, *args, **kwargs):
         return visitor.visit_rule(self, *args, **kwargs)
 
 class SymbolRule(Rule):
     def __init__(self, name, symbol_checker):
-        super().__init__(name, returnable=True)
+        super().__init__(name)
         self.symbol_checker = symbol_checker
 
     def accept(self, visitor, *args, **kwargs):
         return visitor.visit_symbol_rule(self, *args, **kwargs)
 
 class SequenceRule(Rule):
-    def __init__(self, name, symbol_checker, returnable):
-        super().__init__(name, returnable)
+    def __init__(self, name, symbol_checker):
+        super().__init__(name)
         self.symbol_checker = symbol_checker
 
     def accept(self, visitor, *args, **kwargs):
@@ -96,23 +95,23 @@ class SequenceRule(Rule):
 
 class TokenRule(Rule):
     def __init__(self, name, token):
-        super().__init__(name, returnable=True)
+        super().__init__(name)
         self.token = token
 
     def accept(self, visitor, *args, **kwargs):
         return visitor.visit_token_rule(self, *args, **kwargs)
 
 class LexingRule(Rule):
-    def __init__(self, name, lexer, returnable):
-        super().__init__(name, returnable)
+    def __init__(self, name, lexer):
+        super().__init__(name)
         self.lexer = lexer
 
     def accept(self, visitor, *args, **kwargs):
         return visitor.visit_lexing_rule(self, *args, **kwargs)
 
 class BranchingRule(Rule):
-    def __init__(self, name, unsorted_branches, returnable):
-        super().__init__(name, returnable)
+    def __init__(self, name, unsorted_branches):
+        super().__init__(name)
         self.normal_branches = unsorted_branches
         self.recurrent_branches = unsorted_branches
 

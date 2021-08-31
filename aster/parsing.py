@@ -68,7 +68,9 @@ class Parser(ParsingTreeVisitor):
         index = position
         real_initial_base = len(self.nodes)
 
-        for matcher in branch.matchers:
+        for it in range(len(branch.matchers)):
+            matcher = branch.matchers[it]
+
             if not matcher.forbids_indent:
                 index = skip_indent(index, text)
 
@@ -82,8 +84,12 @@ class Parser(ParsingTreeVisitor):
                 result = self.cache[cacke_key]
 
             if not result.success:
-                del self.nodes[real_initial_base:]
-                return ParsingResult.back_to(position)
+                if it <= branch.non_returnable_index:
+                    del self.nodes[real_initial_base:]
+                    return ParsingResult.back_to(position)
+
+                self.report(f'Expected a "{matcher.rule.name}", but `{text[index:index+10]}` found (index: {index})')
+                return ParsingResult.escape(text)
 
             self.cache[cacke_key] = result
 
@@ -150,11 +156,7 @@ class Parser(ParsingTreeVisitor):
         normal_result = self.visit_branch_group(rule.normal_branches, index, text, len(self.nodes))
 
         if not normal_result.success:
-            if rule.returnable:
-                return ParsingResult.back_to(position)
-
-            self.report(f'None of the @{rule.name} branches applicable for `{text[index:index+10]}` (index: {index})')
-            return ParsingResult.escape(text)
+            return ParsingResult.back_to(position)
 
         result = normal_result.node
         index = normal_result.index

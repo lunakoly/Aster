@@ -14,19 +14,11 @@ class TemplateBuilder:
         return '|returnable' if returnable else ''
 
     @staticmethod
-    def build_sequence_rule(symbol_group, returnable=True):
+    def build_sequence_rule(symbol_group):
         rule = symbol_group + 'Sequence'
-        returnable_suffix = TemplateBuilder.get_returnable_suffix(returnable)
-
-        # return {
-        #     rule + returnable_suffix + '|sequence': {
-        #         f'@{rule}~#{symbol_group}': string_append,
-        #         '~#' + symbol_group: take(0),
-        #     },
-        # }
 
         return {
-            rule + returnable_suffix + '|sequence': {
+            rule + '|sequence': {
                 'symbolGroup': symbol_group,
             },
         }
@@ -51,7 +43,7 @@ class TemplateBuilder:
 
         return {
             list_rule: {
-                f'@{list_rule} , @{rule}': list_append(2),
+                f'@{list_rule} , | @{rule}': list_append(2),
                 '@' + rule: self.build_ast('List', {
                     'values': ['$0'],
                 }),
