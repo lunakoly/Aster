@@ -110,6 +110,16 @@ grammar = builder.compile_grammar_from_template({
             '@identifier': handlers.take(0),
             '@string': handlers.take(0),
         },
+        'closureContents': {
+            '@expectedIdentifierList -> | @statementList': builder.build_ast('Closure', {
+                'arguments': '$0',
+                'statements': '$2',
+            }),
+            '@statementList': builder.build_ast('Closure', {
+                'arguments': None,
+                'statements': '$0',
+            }),
+        },
         'item': {
             '@anyToken': handlers.take(0),
             '( | @expression )': handlers.take(1),
@@ -121,14 +131,7 @@ grammar = builder.compile_grammar_from_template({
                 'receiver': '$0',
                 'arguments': '$2',
             }),
-            '{ @expectedIdentifierList -> | @statementList }': builder.build_ast('Closure', {
-                'arguments': '$1',
-                'statements': '$3',
-            }),
-            '{ | @statementList }': builder.build_ast('Closure', {
-                'arguments': None,
-                'statements': '$1',
-            }),
+            '{ | @closureContents }': handlers.take(1),
             '@error': handlers.take(0),
         },
         'unaryMinus': {
