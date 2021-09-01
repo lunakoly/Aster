@@ -28,6 +28,20 @@ def parse_string(position, text):
 
     return ParsingResult(index + 1, True, string_initializer([result]))
 
+def parse_name(position, text):
+    index = position
+
+    if not symbols.is_nameStart(text[index]):
+        return ParsingResult.back_to(position)
+
+    index += 1
+
+    while symbols.is_nameInner(text[index]):
+        index += 1
+
+    result = text[position:index]
+    return ParsingResult(index, True, result)
+
 grammar = builder.compile_grammar_from_template({
     'symbolGroups': preprocessing.collect_symbol_groups(symbols.__dict__),
     'rules': {
@@ -59,9 +73,8 @@ grammar = builder.compile_grammar_from_template({
                 'base': 10,
             }),
         },
-        'name': {
-            '@name~#nameInner': handlers.string_append,
-            '#nameStart': handlers.take(0),
+        'name|lexing': {
+            'lexer': parse_name,
         },
         'identifier': {
             '@name': builder.build_ast('Identifier', {
