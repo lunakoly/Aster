@@ -172,12 +172,12 @@ grammar = builder.compile_grammar_from_template({
             }),
         },
         'statement': {
-            'let|@blankSequence @identifier @letDeclarationContents': handlers.take(3),
+            'let|@blankSequence~@identifier @letDeclarationContents': handlers.take(3),
             '@expression': handlers.take(0),
         },
         **builder.build_comma_list_rule('statement'),
         'topLevelClosure': {
-            '@blankSequence | @statementList': builder.build_ast('Closure', {
+            '@blankSequence|@statementList': builder.build_ast('Closure', {
                 'arguments': None,
                 'statements': '$1',
             }),
