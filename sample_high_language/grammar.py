@@ -103,12 +103,12 @@ grammar = builder.compile_grammar_from_template({
             }),
         },
         'anyToken': {
+            '@identifier': handlers.take(0),
+            '@string': handlers.take(0),
             '@binaryNumber': handlers.take(0),
             '@octalNumber': handlers.take(0),
             '@hexadecimalNumber': handlers.take(0),
             '@decimalNumber': handlers.take(0),
-            '@identifier': handlers.take(0),
-            '@string': handlers.take(0),
         },
         'closureContents': {
             '@expectedIdentifierList -> | @statementList': builder.build_ast('Closure', {
