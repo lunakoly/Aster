@@ -26,7 +26,7 @@ def parse_string(position, text):
         result += text[index]
         index += 1
 
-    return ParsingResult(index + 1, True, string_initializer([result]))
+    return ParsingResult(index + 1, string_initializer([result]))
 
 def parse_name(position, text):
     index = position
@@ -40,7 +40,7 @@ def parse_name(position, text):
         index += 1
 
     result = text[position:index]
-    return ParsingResult(index, True, result)
+    return ParsingResult(index, result)
 
 grammar = builder.compile_grammar_from_template({
     'symbolGroups': preprocessing.collect_symbol_groups(symbols.__dict__),

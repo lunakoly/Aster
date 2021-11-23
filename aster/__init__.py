@@ -4,9 +4,9 @@ from .parsing import Parser
 
 def parse(text, grammar):
     parser = Parser()
-    result = parser.visit_grammar(grammar, 0, text)
+    result = parser.visit_grammar(grammar)(0, text)
 
-    if result.success:
+    if result.is_success():
         return result.node, parser.errors
 
     return None, parser.errors

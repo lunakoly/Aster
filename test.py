@@ -45,10 +45,19 @@ def test_parse(source_code):
     ast = None
     messages = None
 
+    parser = aster.Parser()
+    run_grammar = parser.visit_grammar(grammar.grammar)
+
     def parse_wrapper():
         nonlocal ast
         nonlocal messages
-        ast, messages = aster.parse(source_code, grammar.grammar)
+
+        result = run_grammar(0, source_code)
+
+        if result.is_success():
+            ast = result.node
+
+        messages = parser.errors
 
     measure(parse_wrapper, count=1000)
 
