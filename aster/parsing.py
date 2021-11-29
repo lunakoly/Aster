@@ -1,4 +1,4 @@
-from aster.parsing_tree import *
+from aster.grammar import *
 
 class ParsingResult:
     def __init__(self, index, node):
@@ -51,7 +51,7 @@ def skip_indent(position, text):
         position += 1
     return position
 
-class Parser(ParsingTreeVisitor):
+class Parser(Visitor):
     def __init__(self):
         self.cache = {}
         self.errors = []

@@ -1,6 +1,6 @@
 import re
 
-from aster.parsing_tree import *
+from aster.grammar import *
 from aster.resolution import NameReference
 
 def build_matcher(context, part):

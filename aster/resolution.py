@@ -1,4 +1,4 @@
-from aster.parsing_tree import *
+from aster.grammar import *
 
 class NameReference:
     def __init__(self, name):
@@ -11,7 +11,7 @@ class ResolutionContext:
         self.upper_mapping = {}
         self.tokens_mapping = {}
 
-class ParsingTreeResolver(ParsingTreeVisitor):
+class ParsingTreeResolver(Visitor):
     def __init__(self, resolution_context):
         self.context = resolution_context
         self.current_rule = None
