@@ -54,7 +54,7 @@ def print_pretty(it, indent='', cache=GeneralCache(), show_ids=True):
 
         if show_ids:
             if is_new:
-                print('+')
+                print('+', end='')
 
             print(f'@{cache_id}', end=' ')
 
