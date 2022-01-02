@@ -11,7 +11,7 @@ import cProfile
 
 from pstats import Stats
 
-def measure(code, count):
+def measure(code, count, warmup):
     # with cProfile.Profile() as pr:
     #     start = time.time()
 
@@ -19,6 +19,9 @@ def measure(code, count):
     #         code()
 
     #     stop = time.time()
+
+    for _ in range(warmup):
+        code()
 
     start = time.time()
 
@@ -59,7 +62,7 @@ def test_parse(source_code):
 
         messages = parser.errors
 
-    measure(parse_wrapper, count=1000)
+    measure(parse_wrapper, count=1000, warmup=10)
 
     print(f'[{to_marker(ast)}] Test Case:')
     print()
