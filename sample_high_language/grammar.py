@@ -2,14 +2,16 @@ from aster.compilation.template import TemplateBuilder
 from aster.compilation.template import handlers
 from aster.compilation import preprocessing
 from aster.parsing import ParsingResult
+from aster.synthetic import parameter
 
 from . import symbols
+from .tree import *
 
 builder = TemplateBuilder()
 
-string_initializer = builder.build_ast('String', {
-    'value': '$0',
-})
+string_initializer = String.create@{
+    'value': parameter@0,
+}
 
 def parse_string(position, text):
     index = position
@@ -50,43 +52,43 @@ grammar = builder.compile_grammar_from_template({
         **builder.build_sequence_rule('decimal'),
         **builder.build_sequence_rule('hexadecimal'),
         'binaryNumber': {
-            '@binarySequence~b': builder.build_ast('Number', {
-                'value': '$0',
+            '@binarySequence~b': Number.create@{
+                'value': parameter@0,
                 'base': 2,
-            }),
+            },
         },
         'octalNumber': {
-            '@octalSequence~o': builder.build_ast('Number', {
-                'value': '$0',
+            '@octalSequence~o': Number.create@{
+                'value': parameter@0,
                 'base': 8,
-            }),
+            },
         },
         'hexadecimalNumber': {
-            '@hexadecimalSequence~h': builder.build_ast('Number', {
-                'value': '$0',
+            '@hexadecimalSequence~h': Number.create@{
+                'value': parameter@0,
                 'base': 16,
-            }),
+            },
         },
         'decimalNumber': {
-            '@decimalSequence': builder.build_ast('Number', {
-                'value': '$0',
+            '@decimalSequence': Number.create@{
+                'value': parameter@0,
                 'base': 10,
-            }),
+            },
         },
         'name|lexing': {
             'lexer': parse_name,
         },
         'identifier': {
-            '@name': builder.build_ast('Identifier', {
-                'name': '$0',
-            }),
+            '@name': Identifier.create@{
+                'name': parameter@0,
+            },
         },
         'expectedIdentifier': {
-            '|@name': builder.build_ast('Identifier', {
-                'name': '$0',
-            }),
+            '|@name': Identifier.create@{
+                'name': parameter@0,
+            },
         },
-        **builder.build_comma_list_rule('expectedIdentifier'),
+        **builder.build_comma_list_rule('expectedIdentifier', List),
         'string|lexing': {
             'lexer': parse_string,
         },
@@ -98,9 +100,9 @@ grammar = builder.compile_grammar_from_template({
             '@notBlankSequence': handlers.take(0),
         },
         'error': {
-            '|@errorToken': builder.build_ast('Error', {
-                'token': '$0',
-            }),
+            '|@errorToken': Error.create@{
+                'token': parameter@0,
+            },
         },
         'anyToken': {
             '@identifier': handlers.take(0),
@@ -111,80 +113,80 @@ grammar = builder.compile_grammar_from_template({
             '@decimalNumber': handlers.take(0),
         },
         'closureContents': {
-            '@expectedIdentifierList -> | @statementList': builder.build_ast('Closure', {
-                'arguments': '$0',
-                'statements': '$2',
-            }),
-            '@statementList': builder.build_ast('Closure', {
+            '@expectedIdentifierList -> | @statementList': Closure.create@{
+                'arguments': parameter@0,
+                'statements': parameter@2,
+            },
+            '@statementList': Closure.create@{
                 'arguments': None,
-                'statements': '$0',
-            }),
+                'statements': parameter@0,
+            },
         },
         'item': {
             '@anyToken': handlers.take(0),
             '( | @expression )': handlers.take(1),
-            '@item ( | @expressionList )': builder.build_ast('Call', {
-                'receiver': '$0',
-                'arguments': '$2',
-            }),
-            '@item [ | @expressionList ]': builder.build_ast('Subscript', {
-                'receiver': '$0',
-                'arguments': '$2',
-            }),
+            '@item ( | @expressionList )': Call.create@{
+                'receiver': parameter@0,
+                'arguments': parameter@2,
+            },
+            '@item [ | @expressionList ]': Subscript.create@{
+                'receiver': parameter@0,
+                'arguments': parameter@2,
+            },
             '{ | @closureContents }': handlers.take(1),
             '@error': handlers.take(0),
         },
         'unaryMinus': {
-            '- | $upper': builder.build_ast('UnaryMinus', {
-                'target': '$1',
-            }),
+            '- | $upper': UnaryMinus.create@{
+                'target': parameter@1,
+            },
             '$upper': handlers.take(0),
         },
         'timesOrDivide': {
-            '$self * | $upper': builder.build_binary_ast('Times', '$0', '$2'),
-            '$self / | $upper': builder.build_binary_ast('Divide', '$0', '$2'),
+            '$self * | $upper': Times.create_from(parameter@0, parameter@2),
+            '$self / | $upper': Divide.create_from(parameter@0, parameter@2),
             **builder.build_forward_to_upper(),
         },
         'plusOrMinus': {
-            '$self + | $upper': builder.build_binary_ast('Plus', '$0', '$2'),
-            '$self - | $upper': builder.build_binary_ast('Minus', '$0', '$2'),
+            '$self + | $upper': Plus.create_from(parameter@0, parameter@2),
+            '$self - | $upper': Minus.create_from(parameter@0, parameter@2),
             **builder.build_forward_to_upper(),
         },
         'expression': {
             **builder.build_forward_to_upper(),
         },
-        **builder.build_comma_list_rule('expression'),
+        **builder.build_comma_list_rule('expression', List),
         'letDeclarationContents': {
-            ': | @expectedIdentifier = @expression': builder.build_ast('LetDeclaration', {
-                'name': '$-1',
-                'type': '$1',
-                'value': '$3',
-            }),
-            '= | @expression': builder.build_ast('LetDeclaration', {
-                'name': '$-1',
+            ': | @expectedIdentifier = @expression': LetDeclaration.create@{
+                'name': parameter@-1,
+                'type': parameter@1,
+                'value': parameter@3,
+            },
+            '= | @expression': LetDeclaration.create@{
+                'name': parameter@-1,
                 'type': None,
-                'value': '$1',
-            }),
-            ': | @expectedIdentifier': builder.build_ast('LetDeclaration', {
-                'name': '$-1',
-                'type': '$1',
+                'value': parameter@1,
+            },
+            ': | @expectedIdentifier': LetDeclaration.create@{
+                'name': parameter@-1,
+                'type': parameter@1,
                 'value': None,
-            }),
+            },
         },
         'statement': {
             'let|@blankSequence~@identifier @letDeclarationContents': handlers.take(3),
             '@expression': handlers.take(0),
         },
-        **builder.build_comma_list_rule('statement'),
+        **builder.build_comma_list_rule('statement', List),
         'topLevelClosure': {
-            '@blankSequence|@statementList': builder.build_ast('Closure', {
+            '@blankSequence|@statementList': Closure.create@{
                 'arguments': None,
-                'statements': '$1',
-            }),
-            '@statementList': builder.build_ast('Closure', {
+                'statements': parameter@1,
+            },
+            '@statementList': Closure.create@{
                 'arguments': None,
-                'statements': '$0',
-            }),
+                'statements': parameter@0,
+            },
         },
     },
     'top_level_rule': 'topLevelClosure',

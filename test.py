@@ -1,7 +1,7 @@
 import time
 import aster
 
-from sample_high_language import grammar, printer
+from sample_high_language import grammar, printer, tree
 
 from utils import prettifier
 
@@ -64,6 +64,9 @@ def test_parse(source_code):
     print(f'[{to_marker(ast)}] Test Case:')
     print()
 
+    # prettifier.print_pretty(ast)
+    # print()
+
     if ast is not None:
         # print('Tree:', end=' ')
         # prettifier.print_pretty(ast)
@@ -77,8 +80,8 @@ def test_parse(source_code):
     prettifier.print_pretty(messages)
     print()
 
-    print(grammar.grammar.types.List)
-    print(grammar.grammar.types.LetDeclaration)
+    print(tree.List)
+    print(tree.LetDeclaration)
 
 if __name__ == '__main__':
     test_parse("""

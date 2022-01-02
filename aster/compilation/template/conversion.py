@@ -93,8 +93,8 @@ def build_rule(context, rule_template, name_parts):
 
     return build_branching_rule(context, rule_template, name)
 
-def build_grammar(context, grammar_template, types):
-    grammar = Grammar(types)
+def build_grammar(context, grammar_template):
+    grammar = Grammar()
 
     for symbol_group_name in grammar_template['symbolGroups']:
         symbol_checker = grammar_template['symbolGroups'][symbol_group_name]

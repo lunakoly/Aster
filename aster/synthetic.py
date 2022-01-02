@@ -1,82 +1,57 @@
-from codegen import visitable, visit
+import inspect
 
-def substitute_accessor(accessor, nodes):
-    if isinstance(accessor, str):
-        if accessor.startswith('$'):
-            index = int(accessor[1:])
-            return nodes[index]
+from codegen import visitable, wrap_matmul
+
+class Placeholder:
+    pass
+
+class Required(Placeholder):
+    pass
+
+required = Required()
+
+class Parameter(Placeholder):
+    def __init__(self, index):
+        self.index = index
+
+parameter = wrap_matmul(Parameter, name='ParameterBuilder')
+
+def substitute_accessor(accessor, results):
+    if isinstance(accessor, Parameter):
+        return results[accessor.index]
 
     if isinstance(accessor, list):
-        substituted = []
-
-        for it in accessor:
-            substituted.append(substitute_accessor(it, nodes))
-
-        return substituted
+        return list(map(lambda it: substitute_accessor(it, results), accessor))
 
     return accessor
 
-def create_initializer(ast, fields):
-    def initialize(nodes):
-        return ast(nodes, fields)
-    return initialize
+def initialize_node(node, fields, results):
+    instance = node()
 
-def get_initializer_key(class_name, fields):
-    return f'{class_name}:{id(fields)}'
+    for it in fields:
+        instance.__dict__[it] = substitute_accessor(fields[it], results)
 
-class TypeContainer:
-    pass
+    return instance
 
-class TypeBuilder:
-    def __init__(self):
-        self.ast_initializers = {}
-        self.types = TypeContainer()
+def create_initializer(node, fields):
+    required = set()
 
-        @visitable
-        class Node:
-            pass
+    for (it, that) in inspect.getmembers(node):
+        if isinstance(that, Required):
+            required.add(it)
 
-        self.types.Node = Node
+    for it in fields:
+        if it in required:
+            required.remove(it)
 
-        @visit(Node)
-        class Visitor:
-            pass
+    if len(required) > 0:
+        raise Exception(f'Node `{node.__name__}` contains unassigned attributes > {required}')
 
-        self.types.Visitor = Visitor
+    return lambda results: initialize_node(node, fields, results)
 
-        self.provide_ast('List', {
-            'values': ['$0'],
-        })
+def initializable(cls):
+    setattr(cls, 'create', wrap_matmul(lambda fields: create_initializer(cls, fields)))
+    return cls
 
-    def create_ast(self, class_name):
-        def constructor(self, nodes, fields):
-            for it in fields:
-                accessor = fields[it]
-                self.__dict__[it] = substitute_accessor(accessor, nodes)
-
-        raw_node = type(class_name, (self.types.Node,), {
-            '__init__': constructor,
-        })
-
-        node = visitable(raw_node)
-
-        setattr(self.types, class_name, node)
-        self.types.Visitor = visit(node)(self.types.Visitor)
-
-        return node
-
-    def provide_ast(self, class_name, fields):
-        if class_name in self.__dict__:
-            ast = self.__dict__[class_name]
-        else:
-            ast = self.create_ast(class_name)
-
-        key = get_initializer_key(class_name, fields)
-
-        if key in self.ast_initializers:
-            initializer = self.ast_initializers[key]
-        else:
-            initializer = create_initializer(ast, fields)
-            self.ast_initializers[key] = initializer
-
-        return initializer
+def node(cls):
+    return initializable(visitable(cls))

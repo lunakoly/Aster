@@ -70,11 +70,10 @@ class BranchingRule(Rule):
 
 @visitable
 class Grammar(Node):
-    def __init__(self, types):
+    def __init__(self):
         super().__init__()
         self.rules = []
         self.top_level_matcher = None
-        self.types = types
 
     def add_rule(self, rule):
         self.rules.append(rule)

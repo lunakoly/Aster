@@ -14,6 +14,19 @@ def to_snake_case(name):
 
     return result
 
+def wrap(operator, callback, name='Wrapper'):
+    def wrapped(self, other):
+        return callback(other)
+
+    Wrapper = type(name, (), {
+        operator: wrapped,
+    })
+
+    return Wrapper()
+
+def wrap_matmul(callback, *args, **kwargs):
+    return wrap('__matmul__', callback, *args, **kwargs)
+
 # A meaningful `name` simplifies debugging
 def generate_function(body, name):
     source = f"def {name}{body}"

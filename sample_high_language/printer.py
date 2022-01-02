@@ -1,8 +1,8 @@
-from .grammar import grammar
+from . import tree
 
 TAB = ' ' * 4
 
-class Printer(grammar.types.Visitor):
+class Printer(tree.Visitor):
     def visit_let_declaration(self, it, indent=''):
         print('let ', end='')
         it.name.accept(self, indent)
