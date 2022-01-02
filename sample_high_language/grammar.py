@@ -1,23 +1,24 @@
 from aster.compilation.template import TemplateBuilder
 from aster.compilation.template import handlers
 from aster.compilation import preprocessing
-from aster.parsing import ParsingResult
-from aster.synthetic import parameter
+from aster.parsing import MatchingResult
 
 from . import symbols
-from .tree import *
+from .ast import *
+
+from aster.compilation.template.handlers import result
 
 builder = TemplateBuilder()
 
-string_initializer = String.create@{
-    'value': parameter@0,
+string_initializer = String.new // {
+    'value': result@0,
 }
 
 def parse_string(position, text):
     index = position
 
     if text[index] != '"':
-        return ParsingResult.back_to(position)
+        return MatchingResult.back_to(position)
 
     result = ''
     index += 1
@@ -28,13 +29,13 @@ def parse_string(position, text):
         result += text[index]
         index += 1
 
-    return ParsingResult(index + 1, string_initializer([result]))
+    return MatchingResult(index + 1, string_initializer([result]))
 
 def parse_name(position, text):
     index = position
 
     if not symbols.is_nameStart(text[index]):
-        return ParsingResult.back_to(position)
+        return MatchingResult.back_to(position)
 
     index += 1
 
@@ -42,7 +43,7 @@ def parse_name(position, text):
         index += 1
 
     result = text[position:index]
-    return ParsingResult(index, result)
+    return MatchingResult(index, result)
 
 grammar = builder.compile_grammar_from_template({
     'symbolGroups': preprocessing.collect_symbol_groups(symbols.__dict__),
@@ -52,26 +53,26 @@ grammar = builder.compile_grammar_from_template({
         **builder.build_sequence_rule('decimal'),
         **builder.build_sequence_rule('hexadecimal'),
         'binaryNumber': {
-            '@binarySequence~b': Number.create@{
-                'value': parameter@0,
+            '@binarySequence~b': Number.new // {
+                'value': result@0,
                 'base': 2,
             },
         },
         'octalNumber': {
-            '@octalSequence~o': Number.create@{
-                'value': parameter@0,
+            '@octalSequence~o': Number.new // {
+                'value': result@0,
                 'base': 8,
             },
         },
         'hexadecimalNumber': {
-            '@hexadecimalSequence~h': Number.create@{
-                'value': parameter@0,
+            '@hexadecimalSequence~h': Number.new // {
+                'value': result@0,
                 'base': 16,
             },
         },
         'decimalNumber': {
-            '@decimalSequence': Number.create@{
-                'value': parameter@0,
+            '@decimalSequence': Number.new // {
+                'value': result@0,
                 'base': 10,
             },
         },
@@ -79,13 +80,13 @@ grammar = builder.compile_grammar_from_template({
             'lexer': parse_name,
         },
         'identifier': {
-            '@name': Identifier.create@{
-                'name': parameter@0,
+            '@name': Identifier.new // {
+                'name': result@0,
             },
         },
         'expectedIdentifier': {
-            '|@name': Identifier.create@{
-                'name': parameter@0,
+            '|@name': Identifier.new // {
+                'name': result@0,
             },
         },
         **builder.build_comma_list_rule('expectedIdentifier', List),
@@ -96,60 +97,60 @@ grammar = builder.compile_grammar_from_template({
         **builder.build_sequence_rule('notBlank'),
         'errorToken': {
             '@errorToken~#notBlank': handlers.string_append,
-            '@blankSequence': handlers.take(0),
-            '@notBlankSequence': handlers.take(0),
+            '@blankSequence': result@0,
+            '@notBlankSequence': result@0,
         },
         'error': {
-            '|@errorToken': Error.create@{
-                'token': parameter@0,
+            '|@errorToken': Error.new // {
+                'token': result@0,
             },
         },
         'anyToken': {
-            '@identifier': handlers.take(0),
-            '@string': handlers.take(0),
-            '@binaryNumber': handlers.take(0),
-            '@octalNumber': handlers.take(0),
-            '@hexadecimalNumber': handlers.take(0),
-            '@decimalNumber': handlers.take(0),
+            '@identifier': result@0,
+            '@string': result@0,
+            '@binaryNumber': result@0,
+            '@octalNumber': result@0,
+            '@hexadecimalNumber': result@0,
+            '@decimalNumber': result@0,
         },
         'closureContents': {
-            '@expectedIdentifierList -> | @statementList': Closure.create@{
-                'arguments': parameter@0,
-                'statements': parameter@2,
+            '@expectedIdentifierList -> | @statementList': Closure.new // {
+                'arguments': result@0,
+                'statements': result@2,
             },
-            '@statementList': Closure.create@{
+            '@statementList': Closure.new // {
                 'arguments': None,
-                'statements': parameter@0,
+                'statements': result@0,
             },
         },
         'item': {
-            '@anyToken': handlers.take(0),
-            '( | @expression )': handlers.take(1),
-            '@item ( | @expressionList )': Call.create@{
-                'receiver': parameter@0,
-                'arguments': parameter@2,
+            '@anyToken': result@0,
+            '( | @expression )': result@1,
+            '@item ( | @expressionList )': Call.new // {
+                'receiver': result@0,
+                'arguments': result@2,
             },
-            '@item [ | @expressionList ]': Subscript.create@{
-                'receiver': parameter@0,
-                'arguments': parameter@2,
+            '@item [ | @expressionList ]': Subscript.new // {
+                'receiver': result@0,
+                'arguments': result@2,
             },
-            '{ | @closureContents }': handlers.take(1),
-            '@error': handlers.take(0),
+            '{ | @closureContents }': result@1,
+            '@error': result@0,
         },
         'unaryMinus': {
-            '- | $upper': UnaryMinus.create@{
-                'target': parameter@1,
+            '- | $upper': UnaryMinus.new // {
+                'target': result@1,
             },
-            '$upper': handlers.take(0),
+            '$upper': result@0,
         },
         'timesOrDivide': {
-            '$self * | $upper': Times.create_from(parameter@0, parameter@2),
-            '$self / | $upper': Divide.create_from(parameter@0, parameter@2),
+            '$self * | $upper': Times.new_from(result@0, result@2),
+            '$self / | $upper': Divide.new_from(result@0, result@2),
             **builder.build_forward_to_upper(),
         },
         'plusOrMinus': {
-            '$self + | $upper': Plus.create_from(parameter@0, parameter@2),
-            '$self - | $upper': Minus.create_from(parameter@0, parameter@2),
+            '$self + | $upper': Plus.new_from(result@0, result@2),
+            '$self - | $upper': Minus.new_from(result@0, result@2),
             **builder.build_forward_to_upper(),
         },
         'expression': {
@@ -157,35 +158,35 @@ grammar = builder.compile_grammar_from_template({
         },
         **builder.build_comma_list_rule('expression', List),
         'letDeclarationContents': {
-            ': | @expectedIdentifier = @expression': LetDeclaration.create@{
-                'name': parameter@-1,
-                'type': parameter@1,
-                'value': parameter@3,
+            ': | @expectedIdentifier = @expression': LetDeclaration.new // {
+                'name': result@-1,
+                'type': result@1,
+                'value': result@3,
             },
-            '= | @expression': LetDeclaration.create@{
-                'name': parameter@-1,
+            '= | @expression': LetDeclaration.new // {
+                'name': result@-1,
                 'type': None,
-                'value': parameter@1,
+                'value': result@1,
             },
-            ': | @expectedIdentifier': LetDeclaration.create@{
-                'name': parameter@-1,
-                'type': parameter@1,
+            ': | @expectedIdentifier': LetDeclaration.new // {
+                'name': result@-1,
+                'type': result@1,
                 'value': None,
             },
         },
         'statement': {
-            'let|@blankSequence~@identifier @letDeclarationContents': handlers.take(3),
-            '@expression': handlers.take(0),
+            'let|@blankSequence~@identifier @letDeclarationContents': result@3,
+            '@expression': result@0,
         },
         **builder.build_comma_list_rule('statement', List),
         'topLevelClosure': {
-            '@blankSequence|@statementList': Closure.create@{
+            '@blankSequence|@statementList': Closure.new // {
                 'arguments': None,
-                'statements': parameter@1,
+                'statements': result@1,
             },
-            '@statementList': Closure.create@{
+            '@statementList': Closure.new // {
                 'arguments': None,
-                'statements': parameter@0,
+                'statements': result@0,
             },
         },
     },

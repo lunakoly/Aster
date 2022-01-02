@@ -3,7 +3,21 @@ import re
 from aster.grammar import *
 from aster.resolution import NameReference
 
-def build_matcher(context, part):
+def build_symbol_matcher(symbol_checker):
+    return SymbolMatcher(symbol_checker)
+
+def build_symbol_sequence_matcher(rule_template):
+    symbol_group = rule_template['symbolGroup']
+    return SymbolSequenceMatcher(NameReference(symbol_group))
+
+def build_token_matcher(token):
+    return TokenMatcher(token)
+
+def build_lexing_matcher(rule_template):
+    lexer = rule_template['lexer']
+    return LexingMatcher(lexer)
+
+def build_matcher_call(context, part):
     forbids_indent = True
 
     if part.startswith(' '):
@@ -12,18 +26,18 @@ def build_matcher(context, part):
 
     if part.startswith('#'):
         symbol_group_name = part[1:]
-        return Matcher(context.symbols_mapping[symbol_group_name], forbids_indent)
+        return MatcherCall(context.symbols_mapping[symbol_group_name], forbids_indent)
 
     if part.startswith('$') or part.startswith('@'):
-        return Matcher(NameReference(part), forbids_indent)
+        return MatcherCall(NameReference(part), forbids_indent)
 
     if part in context.tokens_mapping:
-        rule = context.tokens_mapping[part]
+        matcher = context.tokens_mapping[part]
     else:
-        rule = build_token_rule(part)
-        context.tokens_mapping[part] = rule
+        matcher = build_token_matcher(part)
+        context.tokens_mapping[part] = matcher
 
-    return Matcher(rule, forbids_indent)
+    return MatcherCall(matcher, forbids_indent)
 
 def split_branch_pattern(branch_pattern):
     branch_pattern = branch_pattern.strip()
@@ -36,7 +50,7 @@ def split_branch_pattern(branch_pattern):
     branch_pattern = re.sub(r'~$', '', branch_pattern)
     return branch_pattern.split('~')
 
-def build_branch(context, branch_pattern, branch_action):
+def build_matcher_sequence(context, branch_pattern, branch_action):
     parts = split_branch_pattern(branch_pattern)
     non_returnable_index = -1
     matchers = []
@@ -49,56 +63,40 @@ def build_branch(context, branch_pattern, branch_action):
                 raise Exception('Error > Duplicate "non-returnable bar" found > ' + branch_pattern)
             non_returnable_index = it
         else:
-            matchers.append(build_matcher(context, part))
+            matchers.append(build_matcher_call(context, part))
 
     if non_returnable_index == -1:
         non_returnable_index = len(matchers)
 
-    return Branch(branch_action, matchers, non_returnable_index)
+    return MatcherSequence(branch_action, matchers, non_returnable_index)
 
-def build_symbol_rule(symbol_group_name, symbol_checker):
-    return SymbolRule(symbol_group_name, symbol_checker)
-
-def build_sequence_rule(context, rule_template, name):
-    symbol_group = rule_template['symbolGroup']
-    return SequenceRule(name, NameReference(symbol_group))
-
-def build_token_rule(token):
-    return TokenRule(token, token)
-
-def build_lexing_rule(context, rule_template, name):
-    lexer = rule_template['lexer']
-    return LexingRule(name, lexer)
-
-def build_branching_rule(context, rule_template, name):
-    unsorted_branches = BranchGroup()
-    rule = BranchingRule(name, unsorted_branches)
+def build_rule_matcher(context, rule_template):
+    unsorted_branches = MatcherUnion()
+    rule = RuleMatcher(unsorted_branches)
 
     for it in range(len(rule_template)):
         branch_pattern = list(rule_template.keys())[it]
         branch_action = rule_template[branch_pattern]
-        branch = build_branch(context, branch_pattern, branch_action)
-        unsorted_branches.add_branch(branch)
+        branch = build_matcher_sequence(context, branch_pattern, branch_action)
+        unsorted_branches.add_matcher(branch)
 
     return rule
 
 def build_rule(context, rule_template, name_parts):
-    name = name_parts[0]
-
     if any(it == 'lexing' for it in name_parts):
-        return build_lexing_rule(context, rule_template, name)
+        return build_lexing_matcher(rule_template)
 
     if any(it == 'sequence' for it in name_parts):
-        return build_sequence_rule(context, rule_template, name)
+        return build_symbol_sequence_matcher(rule_template)
 
-    return build_branching_rule(context, rule_template, name)
+    return build_rule_matcher(context, rule_template)
 
-def build_grammar(context, grammar_template):
-    grammar = Grammar()
+def build_recursive_matcher(context, grammar_template):
+    grammar = RecursiveMatcher()
 
     for symbol_group_name in grammar_template['symbolGroups']:
         symbol_checker = grammar_template['symbolGroups'][symbol_group_name]
-        context.symbols_mapping[symbol_group_name] = build_symbol_rule(symbol_group_name, symbol_checker)
+        context.symbols_mapping[symbol_group_name] = build_symbol_matcher(symbol_checker)
 
     previous = None
 
@@ -113,7 +111,7 @@ def build_grammar(context, grammar_template):
         previous = rule
 
     top_level_rule_name = '@' + grammar_template['top_level_rule']
-    top_level_matcher = Matcher(NameReference(top_level_rule_name), False)
+    top_level_matcher = MatcherCall(NameReference(top_level_rule_name), False)
     grammar.set_top_level_matcher(top_level_matcher)
 
     return grammar

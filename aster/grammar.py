@@ -5,16 +5,34 @@ class Node:
     pass
 
 @visitable
-class Matcher(Node):
-    def __init__(self, rule, forbids_indent):
-        super().__init__()
-        self.rule = rule
+class SymbolMatcher(Node):
+    def __init__(self, symbol_checker):
+        self.symbol_checker = symbol_checker
+
+@visitable
+class SymbolSequenceMatcher(Node):
+    def __init__(self, symbol_checker):
+        self.symbol_checker = symbol_checker
+
+@visitable
+class TokenMatcher(Node):
+    def __init__(self, token):
+        self.token = token
+
+@visitable
+class LexingMatcher(Node):
+    def __init__(self, lexer):
+        self.lexer = lexer
+
+@visitable
+class MatcherCall(Node):
+    def __init__(self, matcher, forbids_indent):
+        self.matcher = matcher
         self.forbids_indent = forbids_indent
 
 @visitable
-class Branch(Node):
+class MatcherSequence(Node):
     def __init__(self, action, matchers, non_returnable_index):
-        super().__init__()
         self.action = action
         self.matchers = matchers
         self.non_returnable_index = non_returnable_index
@@ -23,55 +41,22 @@ class Branch(Node):
         self.matchers.append(matcher, *args, **kwargs)
 
 @visitable
-class BranchGroup(Node):
+class MatcherUnion(Node):
     def __init__(self):
-        super().__init__()
-        self.branches = []
+        self.matchers = []
 
-    def add_branch(self, it):
-        self.branches.append(it)
-
-@visitable
-class Rule(Node):
-    def __init__(self, name):
-        super().__init__()
-        self.name = name
+    def add_matcher(self, it):
+        self.matchers.append(it)
 
 @visitable
-class SymbolRule(Rule):
-    def __init__(self, name, symbol_checker):
-        super().__init__(name)
-        self.symbol_checker = symbol_checker
-
-@visitable
-class SequenceRule(Rule):
-    def __init__(self, name, symbol_checker):
-        super().__init__(name)
-        self.symbol_checker = symbol_checker
-
-@visitable
-class TokenRule(Rule):
-    def __init__(self, name, token):
-        super().__init__(name)
-        self.token = token
-
-@visitable
-class LexingRule(Rule):
-    def __init__(self, name, lexer):
-        super().__init__(name)
-        self.lexer = lexer
-
-@visitable
-class BranchingRule(Rule):
-    def __init__(self, name, unsorted_branches):
-        super().__init__(name)
+class RuleMatcher(Node):
+    def __init__(self, unsorted_branches):
         self.normal_branches = unsorted_branches
         self.recurrent_branches = unsorted_branches
 
 @visitable
-class Grammar(Node):
+class RecursiveMatcher(Node):
     def __init__(self):
-        super().__init__()
         self.rules = []
         self.top_level_matcher = None
 

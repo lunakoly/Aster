@@ -1,5 +1,4 @@
 from aster.resolution import ParsingTreeResolver, ResolutionContext
-from aster.synthetic import parameter
 
 from .handlers import *
 
@@ -19,7 +18,7 @@ class TemplateBuilder:
     @staticmethod
     def build_forward_to_upper():
         return {
-            '$upper': take(0),
+            '$upper': result@0,
         }
 
     def build_comma_list_rule(self, rule, list_type):
@@ -28,14 +27,14 @@ class TemplateBuilder:
         return {
             list_rule: {
                 f'@{list_rule} , | @{rule}': list_append(2),
-                '@' + rule: list_type.create@{
-                    'values': [parameter@0],
+                '@' + rule: list_type.new // {
+                    'values': [result@0],
                 },
             },
         }
 
     def compile_grammar_from_template(self, grammar_template):
         context = ResolutionContext()
-        grammar = conversion.build_grammar(context, grammar_template)
-        ParsingTreeResolver(context).visit_grammar(grammar)
+        grammar = conversion.build_recursive_matcher(context, grammar_template)
+        ParsingTreeResolver(context).visit_recursive_matcher(grammar)
         return grammar

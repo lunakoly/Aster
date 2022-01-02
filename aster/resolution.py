@@ -16,61 +16,61 @@ class ParsingTreeResolver(Visitor):
         self.context = resolution_context
         self.current_rule = None
 
-    def visit_parsing_node(self, parsing_node):
-        raise Exception('ParsingTreeResolver > Not implemented > ' + str(parsing_node))
+    def visit_object(self, it):
+        raise Exception('ParsingTreeResolver > Not implemented > ' + str(it))
 
-    def visit_matcher(self, matcher):
-        if not isinstance(matcher.rule, NameReference):
+    def visit_symbol_matcher(self, _):
+        pass
+
+    def visit_symbol_sequence_matcher(self, matcher):
+        matcher.symbol_checker = self.context.symbols_mapping[matcher.symbol_checker.name].symbol_checker
+
+    def visit_token_matcher(self, _):
+        pass
+
+    def visit_lexing_matcher(self, _):
+        pass
+
+    def visit_matcher_call(self, call):
+        if not isinstance(call.matcher, NameReference):
             return
 
-        if matcher.rule.name == '$self':
-            matcher.rule = self.current_rule
-        elif matcher.rule.name == '$upper':
-            matcher.rule = self.context.upper_mapping[self.current_rule]
+        if call.matcher.name == '$self':
+            call.matcher = self.current_rule
+        elif call.matcher.name == '$upper':
+            call.matcher = self.context.upper_mapping[self.current_rule]
         else:
-            matcher.rule = self.context.rules_mapping[matcher.rule.name[1:]]
+            call.matcher = self.context.rules_mapping[call.matcher.name[1:]]
 
-    def visit_branch(self, branch):
-        for matcher in branch.matchers:
+    def visit_matcher_sequence(self, sequence):
+        for matcher in sequence.matchers:
             matcher.accept(self)
 
-    def visit_branch_group(self, branch_group):
-        for branch in branch_group.branches:
+    def visit_matcher_union(self, union):
+        for branch in union.matchers:
             branch.accept(self)
 
-    def visit_symbol_rule(self, _):
-        pass
-
-    def visit_sequence_rule(self, rule):
-        rule.symbol_checker = self.context.symbols_mapping[rule.symbol_checker.name].symbol_checker
-
-    def visit_token_rule(self, _):
-        pass
-
-    def visit_lexing_rule(self, _):
-        pass
-
-    def visit_branching_rule(self, rule):
+    def visit_rule_matcher(self, rule):
         self.current_rule = rule
 
         unsorted_branches = rule.normal_branches
 
-        rule.normal_branches = BranchGroup()
-        rule.recurrent_branches = BranchGroup()
+        rule.normal_branches = MatcherUnion()
+        rule.recurrent_branches = MatcherUnion()
 
-        for branch in unsorted_branches.branches:
+        for branch in unsorted_branches.matchers:
             branch.accept(self)
 
-            if branch.matchers[0].rule == rule:
+            if branch.matchers[0].matcher == rule:
                 branch.matchers.pop(0)
-                rule.recurrent_branches.add_branch(branch)
+                rule.recurrent_branches.add_matcher(branch)
             else:
-                rule.normal_branches.add_branch(branch)
+                rule.normal_branches.add_matcher(branch)
 
         self.current_rule = None
 
-    def visit_grammar(self, grammar):
-        for rule in grammar.rules:
+    def visit_recursive_matcher(self, matcher):
+        for rule in matcher.rules:
             rule.accept(self)
 
-        grammar.top_level_matcher.accept(self)
+        matcher.top_level_matcher.accept(self)

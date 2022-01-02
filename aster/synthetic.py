@@ -1,6 +1,6 @@
 import inspect
 
-from codegen import visitable, wrap_matmul
+from codegen import visitable, wrap_floordiv
 
 class Placeholder:
     pass
@@ -10,33 +10,30 @@ class Required(Placeholder):
 
 required = Required()
 
-class Parameter(Placeholder):
-    def __init__(self, index):
-        self.index = index
+def is_handler(it):
+    return callable(it)
 
-parameter = wrap_matmul(Parameter, name='ParameterBuilder')
+def substitute_handlers(value, results):
+    if is_handler(value):
+        return value(results)
 
-def substitute_accessor(accessor, results):
-    if isinstance(accessor, Parameter):
-        return results[accessor.index]
+    if isinstance(value, list):
+        return list(map(lambda it: substitute_handlers(it, results), value))
 
-    if isinstance(accessor, list):
-        return list(map(lambda it: substitute_accessor(it, results), accessor))
+    return value
 
-    return accessor
-
-def initialize_node(node, fields, results):
-    instance = node()
+def initialize(cls, fields, results):
+    instance = cls()
 
     for it in fields:
-        instance.__dict__[it] = substitute_accessor(fields[it], results)
+        instance.__dict__[it] = substitute_handlers(fields[it], results)
 
     return instance
 
-def create_initializer(node, fields):
+def create_initializer(cls, fields):
     required = set()
 
-    for (it, that) in inspect.getmembers(node):
+    for (it, that) in inspect.getmembers(cls):
         if isinstance(that, Required):
             required.add(it)
 
@@ -45,13 +42,13 @@ def create_initializer(node, fields):
             required.remove(it)
 
     if len(required) > 0:
-        raise Exception(f'Node `{node.__name__}` contains unassigned attributes > {required}')
+        raise Exception(f'Some `{cls.__name__}` contains unassigned attributes > {required}')
 
-    return lambda results: initialize_node(node, fields, results)
+    return lambda results: initialize(cls, fields, results)
 
 def initializable(cls):
-    setattr(cls, 'create', wrap_matmul(lambda fields: create_initializer(cls, fields)))
+    setattr(cls, 'new', wrap_floordiv(lambda fields: create_initializer(cls, fields)))
     return cls
 
-def node(cls):
+def ast_node(cls):
     return initializable(visitable(cls))

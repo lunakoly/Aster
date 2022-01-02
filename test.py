@@ -1,7 +1,7 @@
 import time
 import aster
 
-from sample_high_language import grammar, printer, tree
+from sample_high_language import ast, grammar, printer
 
 from utils import prettifier
 
@@ -45,37 +45,34 @@ def to_marker(ast):
     return 'FAIL'
 
 def test_parse(source_code):
-    ast = None
+    tree = None
     messages = None
 
     parser = aster.Parser()
-    run_grammar = parser.visit_grammar(grammar.grammar)
+    match = grammar.grammar.accept(parser)
 
     def parse_wrapper():
-        nonlocal ast
+        nonlocal tree
         nonlocal messages
 
-        result = run_grammar(0, source_code)
+        result = match(0, source_code)
 
-        if result.is_success():
-            ast = result.node
+        if result.is_success:
+            tree = result.data
 
         messages = parser.errors
 
     measure(parse_wrapper, count=1000, warmup=10)
 
-    print(f'[{to_marker(ast)}] Test Case:')
+    print(f'[{to_marker(tree)}] Test Case:')
     print()
 
-    # prettifier.print_pretty(ast)
-    # print()
-
-    if ast is not None:
+    if tree is not None:
         # print('Tree:', end=' ')
-        # prettifier.print_pretty(ast)
+        # prettifier.print_pretty(tree)
         # print()
         print('Printer:', end=' ')
-        ast.accept(printer.Printer())
+        tree.accept(printer.Printer())
         print()
         print()
 
@@ -83,8 +80,8 @@ def test_parse(source_code):
     prettifier.print_pretty(messages)
     print()
 
-    print(tree.List)
-    print(tree.LetDeclaration)
+    print(ast.List)
+    print(ast.LetDeclaration)
 
 if __name__ == '__main__':
     test_parse("""

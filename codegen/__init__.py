@@ -27,6 +27,9 @@ def wrap(operator, callback, name='Wrapper'):
 def wrap_matmul(callback, *args, **kwargs):
     return wrap('__matmul__', callback, *args, **kwargs)
 
+def wrap_floordiv(callback, *args, **kwargs):
+    return wrap('__floordiv__', callback, *args, **kwargs)
+
 # A meaningful `name` simplifies debugging
 def generate_function(body, name):
     source = f"def {name}{body}"

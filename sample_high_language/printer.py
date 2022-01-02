@@ -1,8 +1,8 @@
-from . import tree
+from . import ast
 
 TAB = ' ' * 4
 
-class Printer(tree.Visitor):
+class Printer(ast.Visitor):
     def visit_let_declaration(self, it, indent=''):
         print('let ', end='')
         it.name.accept(self, indent)

@@ -1,77 +1,77 @@
 from codegen import visit_all_visitables
 
-from aster.synthetic import required, node
+from aster.synthetic import ast_node, required
 
-@node
+@ast_node
 class Node:
     pass
 
-@node
+@ast_node
 class Error(Node):
     token = required
 
-@node
+@ast_node
 class List(Node):
     values = required
 
-@node
+@ast_node
 class Number(Node):
    value = required
    base = 10
 
-@node
+@ast_node
 class Identifier(Node):
     name = required
 
-@node
+@ast_node
 class String(Node):
     value = required
 
-@node
+@ast_node
 class Closure(Node):
     arguments = required
     statements = required
 
-@node
+@ast_node
 class Call(Node):
     receiver = required
     arguments = required
 
-@node
+@ast_node
 class Subscript(Node):
     receiver = required
     arguments = required
 
-@node
+@ast_node
 class UnaryMinus(Node):
     target = required
 
-@node
+@ast_node
 class Binary(Node):
     lefter = required
     righter = required
 
     @classmethod
-    def create_from(cls, lefter, righter):
-        return cls.create@{ 'lefter': lefter, 'righter': righter }
+    def new_from(cls, lefter, righter):
+        return cls.new // { 'lefter': lefter, 'righter': righter }
 
-@node
+@ast_node
 class Times(Binary):
     pass
 
-@node
+@ast_node
 class Divide(Binary):
     pass
 
-@node
+@ast_node
 class Plus(Binary):
     pass
 
-@node
+@ast_node
 class Minus(Binary):
     pass
 
-@node
+@ast_node
 class LetDeclaration(Node):
     name = required
     type = None

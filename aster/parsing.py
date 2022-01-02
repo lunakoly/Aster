@@ -1,50 +1,55 @@
 from aster.grammar import *
 
-class ParsingResult:
-    def __init__(self, index, node):
+class MatchingResult:
+    def __init__(self, index, data, is_success=True):
+        self.is_success = is_success
         self.index = index
-        self.node = node
-
-    def is_success(self):
-        return self.node is not None
+        self.data = data
 
     @staticmethod
     def back_to(index):
-        return ParsingResult(index, None)
+        return MatchingResult(index, None, is_success=False)
 
     @staticmethod
     def escape(text):
-        return ParsingResult(len(text), None)
+        return MatchingResult(len(text), None, is_success=False)
 
-class NodesView:
-    def __init__(self, nodes, base):
-        self.nodes = nodes
+class Waiter:
+    def __init__(self):
+        self.link = None
+
+    def run(self, *args, **kwargs):
+        return self.link(*args, **kwargs)
+
+class ResultsView:
+    def __init__(self, results, base):
+        self.results = results
         self.base = base
 
     def get_arguments(self):
-        return self.nodes[self.base:]
+        return self.results[self.base:]
 
     def __getitem__(self, index):
-        return self.nodes[index + self.base]
+        return self.results[index + self.base]
 
     def __len__(self):
-        return len(self.nodes) - self.base
+        return len(self.results) - self.base
 
     class Iterator:
-        def __init__(self, nodes_view):
-            self.nodes_view = nodes_view
-            self.index = nodes_view.base
+        def __init__(self, results_view):
+            self.results_view = results_view
+            self.index = results_view.base
 
         def __next__(self):
-            if self.index >= len(self.nodes_view.nodes):
+            if self.index >= len(self.results_view.results):
                 raise StopIteration()
 
-            result = self.nodes_view.nodes[self.index]
+            result = self.results_view.results[self.index]
             self.index += 1
             return result
 
     def __iter__(self):
-        return NodesView.Iterator(self)
+        return ResultsView.Iterator(self)
 
 def skip_indent(position, text):
     while position < len(text) and text[position] in ' \t\n':
@@ -55,192 +60,185 @@ class Parser(Visitor):
     def __init__(self):
         self.cache = {}
         self.errors = []
-        self.nodes = []
+        self.results = []
         self.runners = {}
         self.waiters = {}
-        self.runners_stack = []
+        self.active_runners = set()
+
+        # RecursiveMatcher's context
+        self.results_base = 0
 
     def report(self, error):
         self.errors.append(error.replace('\n', '\\n').replace('\t', '\\t'))
 
-    def create_runner(self, node, *args, **kwargs):
-        if id(node) in self.runners:
-            return self.runners[id(node)]
+    def create_runner(self, matcher, *args, **kwargs):
+        if id(matcher) in self.runners:
+            return self.runners[id(matcher)]
 
-        if id(node) in self.waiters:
-            waiters = self.waiters[id(node)]
-        else:
-            waiters = []
-            self.waiters[id(node)] = waiters
+        if id(matcher) in self.waiters:
+            return self.waiters[id(matcher)].run
 
-        if node in self.runners_stack:
-            waiter = {
-                'link': None,
-            }
+        waiter = Waiter()
+        self.waiters[id(matcher)] = waiter
 
-            def inner(*args, **kwargs):
-                return waiter['link'](*args, **kwargs)
+        if matcher in self.active_runners:
+            return waiter.run
 
-            waiters.append(waiter)
-            runner = inner
-        else:
-            self.runners_stack.append(node)
-            runner = node.accept(self, *args, **kwargs)
-            self.runners_stack.pop()
+        self.active_runners.add(matcher)
+        runner = matcher.accept(self, *args, **kwargs)
+        self.active_runners.remove(matcher)
 
-        self.runners[id(node)] = runner
-
-        for waiter in self.waiters[id(node)]:
-            waiter['link'] = runner
-
+        self.runners[id(matcher)] = runner
+        waiter.link = runner
         return runner
 
-    def visit_parsing_node(self, parsing_node):
-        raise Exception('Parsing > Not implemented > ' + str(parsing_node))
+    def visit_object(self, it):
+        raise Exception('Parsing > Not implemented > ' + str(it))
 
-    def visit_matcher(self, matcher):
-        return self.create_runner(matcher.rule)
+    def visit_symbol_matcher(self, matcher):
+        def inner(position, text):
+            next_symbol = text[position]
 
-    def visit_branch(self, branch):
-        matcher_runners = []
+            if matcher.symbol_checker(next_symbol):
+                return MatchingResult(position + 1, next_symbol)
 
-        for matcher in branch.matchers:
-            matcher_runners.append(self.create_runner(matcher))
+            return MatchingResult.back_to(position)
 
-        def inner(position, text, nodes_base):
+        return inner
+
+    def visit_symbol_sequence_matcher(self, matcher):
+        def inner(position, text):
             index = position
-            real_initial_base = len(self.nodes)
 
-            for it in range(len(branch.matchers)):
-                matcher = branch.matchers[it]
+            if not matcher.symbol_checker(text[index]):
+                return MatchingResult.back_to(position)
+
+            token = text[index]
+            index += 1
+
+            while matcher.symbol_checker(text[index]):
+                token += text[index]
+                index += 1
+
+            return MatchingResult(index, token)
+
+        return inner
+
+    def visit_token_matcher(self, matcher):
+        def inner(position, text):
+            token_size = len(matcher.token)
+
+            if len(text) - position < token_size:
+                return MatchingResult.back_to(position)
+
+            next_portion = text[position:position + token_size]
+
+            if next_portion != matcher.token:
+                return MatchingResult.back_to(position)
+
+            return MatchingResult(position + token_size, next_portion)
+
+        return inner
+
+    def visit_lexing_matcher(self, matcher):
+        return matcher.lexer
+
+    def visit_matcher_call(self, call):
+        return self.create_runner(call.matcher)
+
+    def visit_matcher_sequence(self, sequence):
+        runners = []
+
+        for matcher in sequence.matchers:
+            runners.append(self.create_runner(matcher))
+
+        def inner(position, text):
+            index = position
+            real_initial_base = len(self.results)
+
+            for it in range(len(sequence.matchers)):
+                matcher = sequence.matchers[it]
 
                 if not matcher.forbids_indent:
                     index = skip_indent(index, text)
 
                 result = None
-                cacke_key = (matcher.rule.name, index)
+                cacke_key = (id(matcher), index)
 
                 if cacke_key not in self.cache:
-                    result = matcher_runners[it](index, text)
+                    result = runners[it](index, text)
+                    self.cache[cacke_key] = result
                 else:
                     result = self.cache[cacke_key]
 
-                if not result.is_success():
-                    if it <= branch.non_returnable_index:
-                        del self.nodes[real_initial_base:]
-                        return ParsingResult.back_to(position)
+                if not result.is_success:
+                    if it <= sequence.non_returnable_index:
+                        del self.results[real_initial_base:]
+                        return MatchingResult.back_to(position)
 
-                    self.report(f'Expected a "{matcher.rule.name}", but `{text[index:index+10]}` found (index: {index})')
-                    return ParsingResult.escape(text)
+                    self.report(f'Expected a "<todo>", but `{text[index:index+10]}` found (index: {index})')
+                    return MatchingResult.escape(text)
 
-                self.cache[cacke_key] = result
-
-                self.nodes.append(result.node)
+                self.results.append(result.data)
                 index = result.index
 
-            result_node = branch.action(NodesView(self.nodes, nodes_base))
-            del self.nodes[nodes_base:]
-            return ParsingResult(index, result_node)
+            result_data = sequence.action(ResultsView(self.results, self.results_base))
+            del self.results[self.results_base:]
+            self.results.append(result_data)
+            return MatchingResult(index, result_data)
 
         return inner
 
-    def visit_branch_group(self, branch_group):
-        branch_runners = []
+    def visit_matcher_union(self, union):
+        runners = []
 
-        for branch in branch_group.branches:
-            branch_runners.append(self.create_runner(branch))
+        for branch in union.matchers:
+            runners.append(self.create_runner(branch))
 
-        def inner(position, text, nodes_base):
-            for run_branch in branch_runners:
-                branch_result = run_branch(position, text, nodes_base)
+        def inner(position, text):
+            for run_branch in runners:
+                branch_result = run_branch(position, text)
 
-                if branch_result.is_success():
+                if branch_result.is_success:
                     return branch_result
 
-            return ParsingResult.back_to(position)
+            return MatchingResult.back_to(position)
 
         return inner
 
-    def visit_symbol_rule(self, rule):
-        def inner(position, text):
-            next_symbol = text[position]
-
-            if rule.symbol_checker(next_symbol):
-                return ParsingResult(position + 1, next_symbol)
-
-            return ParsingResult.back_to(position)
-
-        return inner
-
-    def visit_sequence_rule(self, rule):
-        def inner(position, text):
-            index = position
-
-            if not rule.symbol_checker(text[index]):
-                return ParsingResult.back_to(position)
-
-            token = text[index]
-            index += 1
-
-            while rule.symbol_checker(text[index]):
-                token += text[index]
-                index += 1
-
-            return ParsingResult(index, token)
-
-        return inner
-
-    def visit_token_rule(self, rule):
-        def inner(position, text):
-            token_size = len(rule.token)
-
-            if len(text) - position < token_size:
-                return ParsingResult.back_to(position)
-
-            next_portion = text[position:position + token_size]
-
-            if next_portion != rule.token:
-                return ParsingResult.back_to(position)
-
-            return ParsingResult(position + token_size, next_portion)
-
-        return inner
-
-    def visit_lexing_rule(self, rule):
-        return rule.lexer
-
-    def visit_branching_rule(self, rule):
+    def visit_rule_matcher(self, rule):
         run_normal_branches = self.create_runner(rule.normal_branches)
         run_recurrent_branches = self.create_runner(rule.recurrent_branches)
 
         def inner(position, text):
             index = position
 
-            normal_result = run_normal_branches(index, text, len(self.nodes))
+            old_results_base = self.results_base
+            self.results_base = len(self.results)
+            normal_result = run_normal_branches(index, text)
 
-            if not normal_result.is_success():
-                return ParsingResult.back_to(position)
+            if not normal_result.is_success:
+                self.results_base = old_results_base
+                return MatchingResult.back_to(position)
 
-            result = normal_result.node
+            result = normal_result.data
             index = normal_result.index
-            # Because if there're no branches and we append the
-            # result to the self.nodes, it won't be deleted
-            some_recurrent_branch_worked = True and len(rule.recurrent_branches.branches) > 0
+            try_more_recurrent_branches = len(rule.recurrent_branches.matchers) > 0
 
-            while some_recurrent_branch_worked:
-                self.nodes.append(result)
-                recurrent_result = run_recurrent_branches(index, text, len(self.nodes) - 1)
-                some_recurrent_branch_worked = recurrent_result.is_success()
+            while try_more_recurrent_branches:
+                recurrent_result = run_recurrent_branches(index, text)
+                try_more_recurrent_branches = recurrent_result.is_success
 
-                if some_recurrent_branch_worked:
-                    result = recurrent_result.node
+                if try_more_recurrent_branches:
+                    result = recurrent_result.data
                     index = recurrent_result.index
-                else:
-                    del self.nodes[-1]
 
-            return ParsingResult(index, result)
+            self.results_base = old_results_base
+            del self.results[-1]
+
+            return MatchingResult(index, result)
 
         return inner
 
-    def visit_grammar(self, grammar):
-        return self.create_runner(grammar.top_level_matcher)
+    def visit_recursive_matcher(self, matcher):
+        return self.create_runner(matcher.top_level_matcher)
