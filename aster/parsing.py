@@ -145,8 +145,8 @@ class Parser(Visitor):
 
         return parse
 
-    def visit_lexing_matcher(self, matcher):
-        return matcher.lexer
+    def visit_manual_matcher(self, matcher):
+        return matcher.parse
 
     def visit_matcher_call(self, call):
         return self.create_parser(call.matcher)

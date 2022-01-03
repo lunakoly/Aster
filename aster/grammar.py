@@ -22,9 +22,9 @@ class TokenMatcher(Node):
         self.token = token
 
 @visitable
-class LexingMatcher(Node):
-    def __init__(self, lexer):
-        self.lexer = lexer
+class ManualMatcher(Node):
+    def __init__(self, parse):
+        self.parse = parse
 
 @visitable
 class MatcherCall(Node):
@@ -93,13 +93,13 @@ class RecursiveMatcherTemplate(Template):
 
         return symbol_checker
 
-    def lexing(self, lexer):
-        name = lexer.__name__
+    def manual(self, parse):
+        name = parse.__name__
 
-        matcher = LexingMatcher(lexer)
+        matcher = ManualMatcher(parse)
         self.rules[name] = matcher
 
-        return lexer
+        return parse
 
 @visit_all_visitables(globals())
 class Visitor:

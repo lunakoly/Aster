@@ -41,7 +41,7 @@ def name_start(next):
 def name_inner(next):
     return name_start(next) or decimal(next)
 
-@grammar.lexing
+@grammar.manual
 def name(position, text):
     index = position
 
@@ -60,7 +60,7 @@ string_initializer = String.new // {
     'value': result@0,
 }
 
-@grammar.lexing
+@grammar.manual
 def string(position, text):
     index = position
 

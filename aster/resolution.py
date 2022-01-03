@@ -28,7 +28,7 @@ class GrammarResolver(Visitor):
     def visit_token_matcher(self, _):
         pass
 
-    def visit_lexing_matcher(self, _):
+    def visit_manual_matcher(self, _):
         pass
 
     def visit_matcher_call(self, call):
