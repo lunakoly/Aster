@@ -1,6 +1,6 @@
 from .grammar import *
 
-class MatchingResult:
+class ParsingResult:
     def __init__(self, index, data, is_success=True):
         self.is_success = is_success
         self.index = index
@@ -8,17 +8,17 @@ class MatchingResult:
 
     @staticmethod
     def back_to(index):
-        return MatchingResult(index, None, is_success=False)
+        return ParsingResult(index, None, is_success=False)
 
     @staticmethod
     def escape(text):
-        return MatchingResult(len(text), None, is_success=False)
+        return ParsingResult(len(text), None, is_success=False)
 
 class Waiter:
     def __init__(self):
         self.link = None
 
-    def run(self, *args, **kwargs):
+    def parse(self, *args, **kwargs):
         return self.link(*args, **kwargs)
 
 class ResultsView:
@@ -62,61 +62,61 @@ class Parser(Visitor):
 
         self.cache = {}
         self.results = []
-        self.runners = {}
+        self.parsers = {}
         self.waiters = {}
-        self.active_runners = set()
         self.results_base = 0
+        self.active_matchers = set()
 
     def report(self, error):
         self.errors.append(error.replace('\n', '\\n').replace('\t', '\\t'))
 
-    def create_runner(self, matcher, *args, **kwargs):
-        if id(matcher) in self.runners:
-            return self.runners[id(matcher)]
+    def create_parser(self, matcher, *args, **kwargs):
+        if id(matcher) in self.parsers:
+            return self.parsers[id(matcher)]
 
         if id(matcher) in self.waiters:
-            return self.waiters[id(matcher)].run
+            return self.waiters[id(matcher)].parse
 
         waiter = Waiter()
         self.waiters[id(matcher)] = waiter
 
-        if matcher in self.active_runners:
-            return waiter.run
+        if matcher in self.active_matchers:
+            return waiter.parse
 
-        self.active_runners.add(matcher)
-        runner = matcher.accept(self, *args, **kwargs)
-        self.active_runners.remove(matcher)
+        self.active_matchers.add(matcher)
+        parser = matcher.accept(self, *args, **kwargs)
+        self.active_matchers.remove(matcher)
 
-        self.runners[id(matcher)] = runner
-        waiter.link = runner
-        return runner
+        self.parsers[id(matcher)] = parser
+        waiter.link = parser
+        return parser
 
     def visit_object(self, it):
-        raise Exception(f'Parsing > Not implemented > {it}')
+        raise Exception(f'Parser > Not implemented > {it}')
 
     def visit_symbol_matcher(self, matcher):
-        def inner(position, text):
+        def parse(position, text):
             if position >= len(text):
-                return MatchingResult.back_to(position)
+                return ParsingResult.back_to(position)
 
             next_symbol = text[position]
 
             if matcher.symbol_checker(next_symbol):
-                return MatchingResult(position + 1, next_symbol)
+                return ParsingResult(position + 1, next_symbol)
 
-            return MatchingResult.back_to(position)
+            return ParsingResult.back_to(position)
 
-        return inner
+        return parse
 
     def visit_symbol_sequence_matcher(self, matcher):
-        def inner(position, text):
+        def parse(position, text):
             if position >= len(text):
-                return MatchingResult.back_to(position)
+                return ParsingResult.back_to(position)
 
             index = position
 
             if not matcher.symbol_checker(text[index]):
-                return MatchingResult.back_to(position)
+                return ParsingResult.back_to(position)
 
             token = text[index]
             index += 1
@@ -125,39 +125,39 @@ class Parser(Visitor):
                 token += text[index]
                 index += 1
 
-            return MatchingResult(index, token)
+            return ParsingResult(index, token)
 
-        return inner
+        return parse
 
     def visit_token_matcher(self, matcher):
-        def inner(position, text):
+        def parse(position, text):
             token_size = len(matcher.token)
 
             if len(text) - position < token_size:
-                return MatchingResult.back_to(position)
+                return ParsingResult.back_to(position)
 
             next_portion = text[position:position + token_size]
 
             if next_portion != matcher.token:
-                return MatchingResult.back_to(position)
+                return ParsingResult.back_to(position)
 
-            return MatchingResult(position + token_size, next_portion)
+            return ParsingResult(position + token_size, next_portion)
 
-        return inner
+        return parse
 
     def visit_lexing_matcher(self, matcher):
         return matcher.lexer
 
     def visit_matcher_call(self, call):
-        return self.create_runner(call.matcher)
+        return self.create_parser(call.matcher)
 
     def visit_matcher_sequence(self, sequence):
-        runners = []
+        parsers = []
 
         for matcher in sequence.matchers:
-            runners.append(self.create_runner(matcher))
+            parsers.append(self.create_parser(matcher))
 
-        def inner(position, text):
+        def parse(position, text):
             index = position
             real_initial_base = len(self.results)
 
@@ -171,7 +171,7 @@ class Parser(Visitor):
                 cacke_key = (id(call), index)
 
                 if cacke_key not in self.cache:
-                    result = runners[it](index, text)
+                    result = parsers[it](index, text)
                     self.cache[cacke_key] = result
                 else:
                     result = self.cache[cacke_key]
@@ -179,10 +179,10 @@ class Parser(Visitor):
                 if not result.is_success:
                     if it <= sequence.non_returnable_index:
                         del self.results[real_initial_base:]
-                        return MatchingResult.back_to(position)
+                        return ParsingResult.back_to(position)
 
                     self.report(f'Expected a "<todo>", but `{text[index:index+10]}` found (index: {index})')
-                    return MatchingResult.escape(text)
+                    return ParsingResult.escape(text)
 
                 self.results.append(result.data)
                 index = result.index
@@ -190,32 +190,32 @@ class Parser(Visitor):
             result_data = sequence.handler(ResultsView(self.results, self.results_base))
             del self.results[self.results_base:]
             self.results.append(result_data)
-            return MatchingResult(index, result_data)
+            return ParsingResult(index, result_data)
 
-        return inner
+        return parse
 
     def visit_matcher_union(self, union):
-        runners = []
+        parsers = []
 
         for branch in union.matchers:
-            runners.append(self.create_runner(branch))
+            parsers.append(self.create_parser(branch))
 
-        def inner(position, text):
-            for run_branch in runners:
+        def parse(position, text):
+            for run_branch in parsers:
                 branch_result = run_branch(position, text)
 
                 if branch_result.is_success:
                     return branch_result
 
-            return MatchingResult.back_to(position)
+            return ParsingResult.back_to(position)
 
-        return inner
+        return parse
 
     def visit_rule_matcher(self, rule):
-        run_normal_branches = self.create_runner(rule.normal_branches)
-        run_recurrent_branches = self.create_runner(rule.recurrent_branches)
+        run_normal_branches = self.create_parser(rule.normal_branches)
+        run_recurrent_branches = self.create_parser(rule.recurrent_branches)
 
-        def inner(position, text):
+        def parse(position, text):
             index = position
 
             old_results_base = self.results_base
@@ -224,7 +224,7 @@ class Parser(Visitor):
 
             if not normal_result.is_success:
                 self.results_base = old_results_base
-                return MatchingResult.back_to(position)
+                return ParsingResult.back_to(position)
 
             result = normal_result.data
             index = normal_result.index
@@ -241,9 +241,9 @@ class Parser(Visitor):
             self.results_base = old_results_base
             del self.results[-1]
 
-            return MatchingResult(index, result)
+            return ParsingResult(index, result)
 
-        return inner
+        return parse
 
     def visit_recursive_matcher(self, matcher):
-        return self.create_runner(matcher.top_level_matcher)
+        return self.create_parser(matcher.top_level_matcher)

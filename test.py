@@ -48,14 +48,14 @@ def test_parse(source_code):
     messages = []
     result = None
 
-    match = aster.compile_grammar(grammar.grammar, messages)
+    parse = aster.compile_grammar(grammar.grammar, messages)
 
     def parse_wrapper():
         nonlocal result
         nonlocal messages
 
         messages.clear()
-        result = match(0, source_code)
+        result = parse(0, source_code)
 
     measure(parse_wrapper, count=1000, warmup=10)
 

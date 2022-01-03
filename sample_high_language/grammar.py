@@ -1,7 +1,7 @@
 from aster.handlers import result, string_append
 from aster.builders import build_forward_to_upper, build_comma_list_rule
 from aster.grammar import RecursiveMatcherTemplate, rule_template
-from aster.parsing import MatchingResult
+from aster.parsing import ParsingResult
 
 from codegen import ENGLISH
 
@@ -46,7 +46,7 @@ def name(position, text):
     index = position
 
     if not name_start(text[index]):
-        return MatchingResult.back_to(position)
+        return ParsingResult.back_to(position)
 
     index += 1
 
@@ -54,7 +54,7 @@ def name(position, text):
         index += 1
 
     result = text[position:index]
-    return MatchingResult(index, result)
+    return ParsingResult(index, result)
 
 string_initializer = String.new // {
     'value': result@0,
@@ -65,7 +65,7 @@ def string(position, text):
     index = position
 
     if text[index] != '"':
-        return MatchingResult.back_to(position)
+        return ParsingResult.back_to(position)
 
     result = ''
     index += 1
@@ -76,7 +76,7 @@ def string(position, text):
         result += text[index]
         index += 1
 
-    return MatchingResult(index + 1, string_initializer([result]))
+    return ParsingResult(index + 1, string_initializer([result]))
 
 grammar += {
     'binary_number': rule_template // {
