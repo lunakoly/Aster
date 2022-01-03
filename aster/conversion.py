@@ -79,7 +79,7 @@ class GrammarConverter(Visitor):
 
             if part == '|':
                 if non_returnable_index != -1:
-                    raise Exception(f'Error > Duplicate "non-returnable bar" found > {branch_pattern}')
+                    raise Exception(f'Conversion Error > Duplicate "non-returnable bar" found > {branch_pattern}')
                 non_returnable_index = it
             else:
                 matchers.append(self.build_matcher_call(part))

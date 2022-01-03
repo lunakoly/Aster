@@ -63,7 +63,7 @@ def is_visitable(cls):
 
 def visit(node):
     if not is_visitable(node):
-        print(f'Warning > {node} doesn\'t have an \'accept\' method')
+        print(f'Warning > `{node}` doesn\'t have an \'accept\' method')
 
     snake_name = to_snake_case(node.__name__)
     first_base = to_snake_case(node.__bases__[0].__name__)
