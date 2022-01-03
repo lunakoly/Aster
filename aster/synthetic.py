@@ -1,6 +1,6 @@
 import inspect
 
-from codegen import visitable, wrap_floordiv
+from codegen import visitable, wrap_floordiv, wrap_matmul
 
 class Placeholder:
     pass
@@ -12,6 +12,9 @@ required = Required()
 
 def create_builder(callback, *args, **kwargs):
     return wrap_floordiv(callback, *args, **kwargs)
+
+def create_accessor(callback, *args, **kwargs):
+    return wrap_matmul(callback, *args, **kwargs)
 
 def is_handler(it):
     return callable(it)

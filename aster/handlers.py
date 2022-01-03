@@ -1,11 +1,11 @@
-from codegen import wrap_matmul
+from .synthetic import create_accessor
 
 def take(position):
     def take(nodes):
         return nodes[position]
     return take
 
-result = wrap_matmul(take)
+result = create_accessor(take)
 
 # No `string_create`, because any
 # token is a string.
