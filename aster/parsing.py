@@ -1,3 +1,4 @@
+from re import S
 from .grammar import *
 
 class ParsingResult:
@@ -13,13 +14,6 @@ class ParsingResult:
     @staticmethod
     def escape(text):
         return ParsingResult(len(text), None, is_success=False)
-
-class Waiter:
-    def __init__(self):
-        self.link = None
-
-    def parse(self, *args, **kwargs):
-        return self.link(*args, **kwargs)
 
 class ResultsView:
     def __init__(self, results, base):
@@ -60,41 +54,81 @@ class Parser(Visitor):
     def __init__(self, errors_collector):
         self.errors = errors_collector
 
-        self.cache = {}
-        self.results = []
-        self.parsers = {}
-        self.waiters = {}
-        self.results_base = 0
-        self.active_matchers = set()
+        self.cache = Cache(self)
+        self.simple = SimpleParser(self)
+        self.recursive = RecursiveParser(self)
+
+        # Switching the `cache.backend` each time
+        # is simply a way to use the same `Cache`
+        # instance with multiple other Parsers
 
     def report(self, error):
         self.errors.append(error.replace('\n', '\\n').replace('\t', '\\t'))
 
-    def create_parser(self, matcher, *args, **kwargs):
-        if id(matcher) in self.parsers:
-            return self.parsers[id(matcher)]
+    def visit_object(self, it):
+        self.cache.backend = self.simple
+        return it.accept(self.cache)
 
-        if id(matcher) in self.waiters:
-            return self.waiters[id(matcher)].parse
+    def visit_matcher_call(self, call):
+        self.cache.backend = self.recursive
+        return call.accept(self.cache)
 
-        if matcher in self.active_matchers:
-            waiter = Waiter()
-            self.waiters[id(matcher)] = waiter
-            return waiter.parse
+    def visit_matcher_sequence(self, sequence):
+        self.cache.backend = self.recursive
+        return sequence.accept(self.cache)
 
-        self.active_matchers.add(matcher)
-        parser = matcher.accept(self, *args, **kwargs)
-        self.active_matchers.remove(matcher)
+    def visit_rule_matcher(self, rule):
+        self.cache.backend = self.recursive
+        return rule.accept(self.cache)
 
-        self.parsers[id(matcher)] = parser
+    def visit_recursive_matcher(self, matcher):
+        self.cache.backend = self.recursive
+        return matcher.accept(self.cache)
 
-        if id(matcher) in self.waiters:
-            self.waiters[id(matcher)].link = parser
+class ParserComponent(Visitor):
+    def __init__(self, owner):
+        self.owner = owner
 
+    def report(self, error):
+        return self.owner.report(error)
+
+class Cache(ParserComponent):
+    def __init__(self, owner):
+        super().__init__(owner)
+
+        self.results_cache = {}
+
+        self.parsers_cache = {}
+        self.backend = None
+
+    def with_results_cache(self, parser):
+        def parse(position, text):
+            cacke_key = (id(parser), position)
+
+            if cacke_key not in self.results_cache:
+                result = parser(position, text)
+                self.results_cache[cacke_key] = result
+            else:
+                result = self.results_cache[cacke_key]
+
+            return result
+
+        return parse
+
+    def visit_object(self, it, *args, **kwargs):
+        if id(it) in self.parsers_cache:
+            return self.parsers_cache[id(it)]
+
+        parser = self.with_results_cache(it.accept(self.backend, *args, **kwargs))
+        self.parsers_cache[id(it)] = parser
         return parser
 
+class SimpleParser(ParserComponent):
+    def __init__(self, owner):
+        super().__init__(owner)
+
     def visit_object(self, it):
-        raise Exception(f'Parser > Not implemented > {it}')
+        raise Exception(f'SimpleParser > Not implemented > {it}')
 
     def visit_symbol_matcher(self, matcher):
         def parse(position, text):
@@ -150,14 +184,76 @@ class Parser(Visitor):
     def visit_manual_matcher(self, matcher):
         return matcher.parse
 
+    def visit_matcher_union(self, union):
+        parsers = []
+
+        for matcher in union.matchers:
+            parsers.append(matcher.accept(self.owner))
+
+        def parse(position, text):
+            for parser in parsers:
+                result = parser(position, text)
+
+                if result.is_success:
+                    return result
+
+            return ParsingResult.back_to(position)
+
+        return parse
+
+class Waiter:
+    def __init__(self):
+        self.link = None
+
+    def parse(self, *args, **kwargs):
+        return self.link(*args, **kwargs)
+
+class RecursiveParser(ParserComponent):
+    def __init__(self, owner):
+        super().__init__(owner)
+
+        self.results = []
+        self.results_base = 0
+
+        self.waiters = {}
+        self.active_matchers = set()
+
+    def visit_object(self, it):
+        raise Exception(f'RecursiveParser > Not implemented > {it}')
+
     def visit_matcher_call(self, call):
-        return self.create_parser(call.matcher)
+        # Don't forget that `cache`
+        # may contain same values: we can have
+        # different MatcherCalls but with the same
+        # matcher
+
+        # visiting a MatcherCall *is* the point
+        # from where a possible recursion may start,
+        # that's why this is where we keep track of the
+        # waiters.
+
+        matcher = call.matcher
+
+        if id(matcher) in self.waiters:
+            return self.waiters[id(matcher)].parse
+
+        if matcher in self.active_matchers:
+            waiter = Waiter()
+            self.waiters[id(matcher)] = waiter
+            return waiter.parse
+
+        parser = matcher.accept(self.owner)
+
+        if id(matcher) in self.waiters:
+            self.waiters[id(matcher)].link = parser
+
+        return parser
 
     def visit_matcher_sequence(self, sequence):
         parsers = []
 
         for matcher in sequence.matchers:
-            parsers.append(self.create_parser(matcher))
+            parsers.append(matcher.accept(self.owner))
 
         def parse(position, text):
             index = position
@@ -169,14 +265,7 @@ class Parser(Visitor):
                 if not call.forbids_indent:
                     index = skip_indent(index, text)
 
-                result = None
-                cacke_key = (id(call), index)
-
-                if cacke_key not in self.cache:
-                    result = parsers[it](index, text)
-                    self.cache[cacke_key] = result
-                else:
-                    result = self.cache[cacke_key]
+                result = parsers[it](index, text)
 
                 if not result.is_success:
                     if it <= sequence.non_returnable_index:
@@ -196,26 +285,13 @@ class Parser(Visitor):
 
         return parse
 
-    def visit_matcher_union(self, union):
-        parsers = []
-
-        for branch in union.matchers:
-            parsers.append(self.create_parser(branch))
-
-        def parse(position, text):
-            for run_branch in parsers:
-                branch_result = run_branch(position, text)
-
-                if branch_result.is_success:
-                    return branch_result
-
-            return ParsingResult.back_to(position)
-
-        return parse
-
     def visit_rule_matcher(self, rule):
-        run_normal_branches = self.create_parser(rule.normal_branches)
-        run_recurrent_branches = self.create_parser(rule.recurrent_branches)
+        self.active_matchers.add(rule)
+
+        run_normal_branches = rule.normal_branches.accept(self.owner)
+        run_recurrent_branches = rule.recurrent_branches.accept(self.owner)
+
+        self.active_matchers.remove(rule)
 
         def parse(position, text):
             index = position
@@ -248,4 +324,4 @@ class Parser(Visitor):
         return parse
 
     def visit_recursive_matcher(self, matcher):
-        return self.create_parser(matcher.top_level_matcher)
+        return matcher.top_level_matcher.accept(self.owner)
