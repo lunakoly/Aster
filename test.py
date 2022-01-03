@@ -45,34 +45,29 @@ def to_marker(ast):
     return 'FAIL'
 
 def test_parse(source_code):
-    tree = None
-    messages = None
+    messages = []
+    result = None
 
-    parser = aster.Parser()
-    match = grammar.grammar.accept(parser)
+    match = aster.compile_grammar(grammar.grammar, messages)
 
     def parse_wrapper():
-        nonlocal tree
+        nonlocal result
         nonlocal messages
 
+        messages.clear()
         result = match(0, source_code)
-
-        if result.is_success:
-            tree = result.data
-
-        messages = parser.errors
 
     measure(parse_wrapper, count=1000, warmup=10)
 
-    print(f'[{to_marker(tree)}] Test Case:')
+    print(f'[{to_marker(result.data)}] Test Case:')
     print()
 
-    if tree is not None:
+    if result.data is not None:
         # print('Tree:', end=' ')
         # prettifier.print_pretty(tree)
         # print()
         print('Printer:', end=' ')
-        tree.accept(printer.Printer())
+        result.data.accept(printer.Printer())
         print()
         print()
 

@@ -1,4 +1,4 @@
-from aster.grammar import *
+from .grammar import *
 
 class MatchingResult:
     def __init__(self, index, data, is_success=True):
@@ -57,15 +57,14 @@ def skip_indent(position, text):
     return position
 
 class Parser(Visitor):
-    def __init__(self):
+    def __init__(self, errors_collector):
+        self.errors = errors_collector
+
         self.cache = {}
-        self.errors = []
         self.results = []
         self.runners = {}
         self.waiters = {}
         self.active_runners = set()
-
-        # RecursiveMatcher's context
         self.results_base = 0
 
     def report(self, error):
@@ -93,10 +92,13 @@ class Parser(Visitor):
         return runner
 
     def visit_object(self, it):
-        raise Exception('Parsing > Not implemented > ' + str(it))
+        raise Exception(f'Parsing > Not implemented > {it}')
 
     def visit_symbol_matcher(self, matcher):
         def inner(position, text):
+            if position >= len(text):
+                return MatchingResult.back_to(position)
+
             next_symbol = text[position]
 
             if matcher.symbol_checker(next_symbol):
@@ -108,6 +110,9 @@ class Parser(Visitor):
 
     def visit_symbol_sequence_matcher(self, matcher):
         def inner(position, text):
+            if position >= len(text):
+                return MatchingResult.back_to(position)
+
             index = position
 
             if not matcher.symbol_checker(text[index]):
@@ -116,7 +121,7 @@ class Parser(Visitor):
             token = text[index]
             index += 1
 
-            while matcher.symbol_checker(text[index]):
+            while index < len(text) and matcher.symbol_checker(text[index]):
                 token += text[index]
                 index += 1
 
@@ -157,13 +162,13 @@ class Parser(Visitor):
             real_initial_base = len(self.results)
 
             for it in range(len(sequence.matchers)):
-                matcher = sequence.matchers[it]
+                call = sequence.matchers[it]
 
-                if not matcher.forbids_indent:
+                if not call.forbids_indent:
                     index = skip_indent(index, text)
 
                 result = None
-                cacke_key = (id(matcher), index)
+                cacke_key = (id(call), index)
 
                 if cacke_key not in self.cache:
                     result = runners[it](index, text)
@@ -182,7 +187,7 @@ class Parser(Visitor):
                 self.results.append(result.data)
                 index = result.index
 
-            result_data = sequence.action(ResultsView(self.results, self.results_base))
+            result_data = sequence.handler(ResultsView(self.results, self.results_base))
             del self.results[self.results_base:]
             self.results.append(result_data)
             return MatchingResult(index, result_data)

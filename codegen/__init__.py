@@ -1,5 +1,6 @@
-LETTERS_SMALL = 'abcdefghijklmnopqrstuvwxyz'
-LETTERS_LARGE = LETTERS_SMALL.upper()
+ENGLISH_LOWER = 'abcdefghijklmnopqrstuvwxyz'
+ENGLISH_UPPER = ENGLISH_LOWER.upper()
+ENGLISH = ENGLISH_LOWER + ENGLISH_UPPER
 
 def to_snake_case(name):
     result = name[0].lower()
@@ -7,7 +8,7 @@ def to_snake_case(name):
     for it in range(1, len(name)):
         that = name[it]
 
-        if that in LETTERS_LARGE:
+        if that in ENGLISH_UPPER:
             result += '_' + that.lower()
         else:
             result += that
@@ -30,9 +31,15 @@ def wrap_matmul(callback, *args, **kwargs):
 def wrap_floordiv(callback, *args, **kwargs):
     return wrap('__floordiv__', callback, *args, **kwargs)
 
+def wrap_add(callback, *args, **kwargs):
+    return wrap('__add__', callback, *args, **kwargs)
+
+def wrap_iadd(callback, *args, **kwargs):
+    return wrap('__iadd__', callback, *args, **kwargs)
+
 # A meaningful `name` simplifies debugging
 def generate_function(body, name):
-    source = f"def {name}{body}"
+    source = f'def {name}{body}'
     exec(source)
     return locals()[name]
 

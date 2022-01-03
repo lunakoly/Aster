@@ -10,6 +10,9 @@ class Required(Placeholder):
 
 required = Required()
 
+def create_builder(callback, *args, **kwargs):
+    return wrap_floordiv(callback, *args, **kwargs)
+
 def is_handler(it):
     return callable(it)
 
@@ -47,7 +50,7 @@ def create_initializer(cls, fields):
     return lambda results: initialize(cls, fields, results)
 
 def initializable(cls):
-    setattr(cls, 'new', wrap_floordiv(lambda fields: create_initializer(cls, fields)))
+    setattr(cls, 'new', create_builder(lambda fields: create_initializer(cls, fields)))
     return cls
 
 def ast_node(cls):

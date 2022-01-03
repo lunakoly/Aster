@@ -1,29 +1,29 @@
-from aster.grammar import *
+from codegen import wrap_matmul
+
+from .grammar import *
 
 class NameReference:
     def __init__(self, name):
         self.name = name
 
 class ResolutionContext:
-    def __init__(self):
-        self.rules_mapping = {}
-        self.symbols_mapping = {}
-        self.upper_mapping = {}
-        self.tokens_mapping = {}
+    def __init__(self, conversion_context):
+        self.conversion = conversion_context
 
-class ParsingTreeResolver(Visitor):
+class GrammarResolver(Visitor):
     def __init__(self, resolution_context):
         self.context = resolution_context
         self.current_rule = None
+        self.upper_rule = None
 
     def visit_object(self, it):
-        raise Exception('ParsingTreeResolver > Not implemented > ' + str(it))
+        raise Exception(f'GrammarResolver > Not implemented > {it}')
 
     def visit_symbol_matcher(self, _):
         pass
 
     def visit_symbol_sequence_matcher(self, matcher):
-        matcher.symbol_checker = self.context.symbols_mapping[matcher.symbol_checker.name].symbol_checker
+        pass
 
     def visit_token_matcher(self, _):
         pass
@@ -38,9 +38,9 @@ class ParsingTreeResolver(Visitor):
         if call.matcher.name == '$self':
             call.matcher = self.current_rule
         elif call.matcher.name == '$upper':
-            call.matcher = self.context.upper_mapping[self.current_rule]
+            call.matcher = self.upper_rule
         else:
-            call.matcher = self.context.rules_mapping[call.matcher.name[1:]]
+            call.matcher = self.context.conversion.rules[call.matcher.name]
 
     def visit_matcher_sequence(self, sequence):
         for matcher in sequence.matchers:
@@ -67,10 +67,14 @@ class ParsingTreeResolver(Visitor):
             else:
                 rule.normal_branches.add_matcher(branch)
 
+        self.upper_rule = self.current_rule
         self.current_rule = None
 
     def visit_recursive_matcher(self, matcher):
         for rule in matcher.rules:
             rule.accept(self)
 
-        matcher.top_level_matcher.accept(self)
+        if matcher.top_level_matcher.name not in self.context.conversion.rules:
+            raise Exception(f'Top level matcher not found > `{matcher.top_level_matcher.name}`')
+
+        matcher.top_level_matcher = self.context.conversion.rules[matcher.top_level_matcher.name]
