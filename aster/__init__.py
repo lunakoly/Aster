@@ -7,9 +7,9 @@ def compile_grammar(matcher, errors_collector):
     converted = matcher.accept(GrammarConverter(conversion_context))
 
     resolution_context = ResolutionContext(conversion_context)
-    converted.accept(GrammarResolver(resolution_context))
+    resolved = converted.accept(GrammarResolver(resolution_context))
 
-    return converted.accept(Parser(errors_collector))
+    return resolved.accept(Parser(errors_collector))
 
 def parse(text, matcher):
     errors = []

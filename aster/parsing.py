@@ -225,7 +225,8 @@ class RecursiveParser(ParserComponent):
         # Don't forget that `cache`
         # may contain same values: we can have
         # different MatcherCalls but with the same
-        # matcher
+        # matcher. Though, note that we shouldn't have
+        # multiple identical MatcherCalls
 
         # visiting a MatcherCall *is* the point
         # from where a possible recursion may start,

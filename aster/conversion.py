@@ -6,6 +6,7 @@ from .grammar import *
 class ConversionContext:
     def __init__(self):
         self.rules = {}
+        self.matcher_calls_cache = {}
 
 def split_branch_pattern(branch_pattern):
     branch_pattern = branch_pattern.strip()
@@ -67,7 +68,17 @@ class GrammarConverter(Visitor):
             # Helps debugging
             matcher.debug_name = part
 
-        return MatcherCall(matcher, forbids_indent)
+        # At this stage we can cache calls to
+        # literal matchers to remove duplicates
+
+        cache_key = (id(matcher), forbids_indent)
+
+        if cache_key in self.context.matcher_calls_cache:
+            return self.context.matcher_calls_cache[cache_key]
+
+        call = MatcherCall(matcher, forbids_indent)
+        self.context.matcher_calls_cache[cache_key] = call
+        return call
 
     def build_matcher_sequence(self, branch_pattern, branch_handler):
         parts = split_branch_pattern(branch_pattern)
