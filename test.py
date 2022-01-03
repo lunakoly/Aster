@@ -1,15 +1,100 @@
 import time
-import aster
 
 from sample_high_language import ast, grammar, printer
 
 from utils import prettifier
 
+import aster
 import aster.synthetic
+
+from aster.parsing import Parser
+from aster.grammar import Visitor, SymbolMatcher, SymbolSequenceMatcher, TokenMatcher, ManualMatcher
 
 import cProfile
 
 from pstats import Stats
+
+class DuplicatesCollector(Visitor):
+    def __init__(self):
+        self.matcher_calls_cache = {}
+        self.symbol_matchers_cache = {}
+        self.symbol_sequence_matchers_cache = {}
+        self.token_matchers_cache = {}
+        self.manual_matchers_cache = {}
+
+    def problems(self):
+        problems = []
+
+        check_list = [
+            (self.matcher_calls_cache, 'MatcherCalls'),
+            (self.symbol_matchers_cache, 'SymbolMatchers'),
+            (self.symbol_sequence_matchers_cache, 'SymbolSequenceMatchers'),
+            (self.token_matchers_cache, 'TokenMatchers'),
+            (self.manual_matchers_cache, 'MatcherCalls'),
+        ]
+
+        for it in check_list:
+            for (key, objects) in it[0].items():
+                if len(objects) > 1:
+                    problems.append(f'Duplicate {it[1]} > {key} > {len(objects)} times')
+
+        return problems
+
+    def update_cache(self, cache, key, it):
+        if key not in cache:
+            cache[key] = [it]
+        else:
+            other = cache[key]
+            is_new = True
+
+            for that in other:
+                if id(it) == id(that):
+                    is_new = False
+
+            if is_new:
+                other.append(it)
+
+    def visit_object(self, _):
+        pass
+
+    def visit_matcher_call(self, call):
+        cache_key = (call.matcher.debug_name, call.forbids_indent)
+        self.update_cache(self.matcher_calls_cache, cache_key, call)
+
+        if isinstance(call.matcher, SymbolMatcher):
+            key = call.matcher.debug_name
+            self.update_cache(self.symbol_matchers_cache, key, call.matcher)
+
+        elif isinstance(call.matcher, SymbolSequenceMatcher):
+            key = call.matcher.debug_name
+            self.update_cache(self.symbol_sequence_matchers_cache, key, call.matcher)
+
+        elif isinstance(call.matcher, TokenMatcher):
+            key = call.matcher.token
+            self.update_cache(self.token_matchers_cache, key, call.matcher)
+
+        elif isinstance(call.matcher, ManualMatcher):
+            key = call.matcher.parse.__name__
+            self.update_cache(self.manual_matchers_cache, key, call.matcher)
+
+    def visit_matcher_sequence(self, sequence):
+        for matcher in sequence.matchers:
+            matcher.accept(self)
+
+    def visit_matcher_union(self, union):
+        for matcher in union.matchers:
+            matcher.accept(self)
+
+    def visit_rule_matcher(self, rule):
+        for branch in rule.normal_branches.matchers:
+            branch.accept(self)
+
+        for branch in rule.recurrent_branches.matchers:
+            branch.accept(self)
+
+    def visit_recursive_matcher(self, matcher):
+        for rule in matcher.rules:
+            rule.accept(self)
 
 def measure(code, count, warmup):
     # with cProfile.Profile() as pr:
@@ -39,16 +124,20 @@ def measure(code, count, warmup):
     #     stats.dump_stats('stats.profiling')
     #     stats.print_stats()
 
-def to_marker(ast):
-    if ast is not None:
+def to_marker(result, messages):
+    if result.is_success and len(messages) == 0:
         return 'OK'
     return 'FAIL'
 
 def test_parse(source_code):
+    resolved_grammar = aster.prepare_grammar(grammar.grammar)
+    duplicates_collector = DuplicatesCollector()
+    resolved_grammar.accept(duplicates_collector)
+    resolution_messages = duplicates_collector.problems()
+
     messages = []
     result = None
-
-    parse = aster.compile_grammar(grammar.grammar, messages)
+    parse = resolved_grammar.accept(Parser(messages))
 
     def parse_wrapper():
         nonlocal result
@@ -59,7 +148,8 @@ def test_parse(source_code):
 
     measure(parse_wrapper, count=1000, warmup=10)
 
-    print(f'[{to_marker(result.data)}] Test Case:')
+    marker = to_marker(result, messages + resolution_messages)
+    print(f'[{marker}] Test Case:')
     print()
 
     if result.data is not None:
@@ -71,12 +161,13 @@ def test_parse(source_code):
         print()
         print()
 
-    print('Messages:', end=' ')
-    prettifier.print_pretty(messages)
+    print('Resolution Messages:', end=' ')
+    prettifier.print_pretty(resolution_messages)
     print()
 
-    print(ast.List)
-    print(ast.LetDeclaration)
+    print('Parsing Messages:', end=' ')
+    prettifier.print_pretty(messages)
+    print()
 
 if __name__ == '__main__':
     test_parse("""
