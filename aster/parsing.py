@@ -77,10 +77,9 @@ class Parser(Visitor):
         if id(matcher) in self.waiters:
             return self.waiters[id(matcher)].parse
 
-        waiter = Waiter()
-        self.waiters[id(matcher)] = waiter
-
         if matcher in self.active_matchers:
+            waiter = Waiter()
+            self.waiters[id(matcher)] = waiter
             return waiter.parse
 
         self.active_matchers.add(matcher)
@@ -88,7 +87,10 @@ class Parser(Visitor):
         self.active_matchers.remove(matcher)
 
         self.parsers[id(matcher)] = parser
-        waiter.link = parser
+
+        if id(matcher) in self.waiters:
+            self.waiters[id(matcher)].link = parser
+
         return parser
 
     def visit_object(self, it):
