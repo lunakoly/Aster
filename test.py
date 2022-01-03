@@ -7,7 +7,7 @@ from utils import prettifier
 import aster
 import aster.synthetic
 
-from aster.parsing import Parser
+from aster.parsing import ParserGenerator
 from aster.grammar import Visitor, SymbolMatcher, SymbolSequenceMatcher, TokenMatcher, ManualMatcher
 
 import cProfile
@@ -137,7 +137,7 @@ def test_parse(source_code):
 
     messages = []
     result = None
-    parse = resolved_grammar.accept(Parser(messages))
+    parse = resolved_grammar.accept(ParserGenerator(messages))
 
     def parse_wrapper():
         nonlocal result

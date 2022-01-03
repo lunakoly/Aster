@@ -50,13 +50,13 @@ def skip_indent(position, text):
         position += 1
     return position
 
-class Parser(Visitor):
+class ParserGenerator(Visitor):
     def __init__(self, errors_collector):
         self.errors = errors_collector
 
         self.cache = Cache(self)
-        self.simple = SimpleParser(self)
-        self.recursive = RecursiveParser(self)
+        self.simple = SimpleParserGenerator(self)
+        self.recursive = RecursiveParserGenerator(self)
 
         # Switching the `cache.backend` each time
         # is simply a way to use the same `Cache`
@@ -85,14 +85,14 @@ class Parser(Visitor):
         self.cache.backend = self.recursive
         return matcher.accept(self.cache)
 
-class ParserComponent(Visitor):
+class ParserGeneratorComponent(Visitor):
     def __init__(self, owner):
         self.owner = owner
 
     def report(self, error):
         return self.owner.report(error)
 
-class Cache(ParserComponent):
+class Cache(ParserGeneratorComponent):
     def __init__(self, owner):
         super().__init__(owner)
 
@@ -123,7 +123,7 @@ class Cache(ParserComponent):
         self.parsers_cache[id(it)] = parser
         return parser
 
-class SimpleParser(ParserComponent):
+class SimpleParserGenerator(ParserGeneratorComponent):
     def __init__(self, owner):
         super().__init__(owner)
 
@@ -208,7 +208,7 @@ class Waiter:
     def parse(self, *args, **kwargs):
         return self.link(*args, **kwargs)
 
-class RecursiveParser(ParserComponent):
+class RecursiveParserGenerator(ParserGeneratorComponent):
     def __init__(self, owner):
         super().__init__(owner)
 

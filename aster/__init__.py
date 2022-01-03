@@ -1,6 +1,6 @@
 from .conversion import ConversionContext, GrammarConverter
 from .resolution import ResolutionContext, GrammarResolver
-from .parsing import Parser
+from .parsing import ParserGenerator
 
 def prepare_grammar(matcher):
     conversion_context = ConversionContext()
@@ -13,7 +13,7 @@ def prepare_grammar(matcher):
 
 def compile_grammar(matcher, errors_collector):
     resolved = prepare_grammar(matcher)
-    return resolved.accept(Parser(errors_collector))
+    return resolved.accept(ParserGenerator(errors_collector))
 
 def parse(text, matcher):
     errors = []
