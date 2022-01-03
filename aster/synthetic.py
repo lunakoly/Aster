@@ -36,7 +36,14 @@ def initialize(cls, fields, results):
 
     return instance
 
+initializers_cache = {}
+
 def create_initializer(cls, fields):
+    cache_key = (cls, str(fields))
+
+    if cache_key in initializers_cache:
+        return initializers_cache[cache_key]
+
     required = set()
 
     for (it, that) in inspect.getmembers(cls):
@@ -50,7 +57,9 @@ def create_initializer(cls, fields):
     if len(required) > 0:
         raise Exception(f'Some `{cls.__name__}` contains unassigned attributes > {required}')
 
-    return lambda results: initialize(cls, fields, results)
+    initializer = lambda results: initialize(cls, fields, results)
+    initializers_cache[cache_key] = initializer
+    return initializer
 
 def initializable(cls):
     setattr(cls, 'new', create_builder(lambda fields: create_initializer(cls, fields)))

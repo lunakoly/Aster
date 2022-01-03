@@ -88,7 +88,7 @@ grammar += {
     'octal_number': rule_template // {
         '@octal_sequence~o': Number.new // {
             'value': result@0,
-            'base': 8,
+            'base': 2,
         },
     },
     'hexadecimal_number': rule_template // {
